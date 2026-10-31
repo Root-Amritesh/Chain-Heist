@@ -61,3 +61,4 @@ These rules are strictly enforced for **all AI agents and developers** working o
 - **Engine**: Phaser 3 (JavaScript)
 - **Active Skills**: `phaser-core`, `phaser-arcade-physics`, `rpg`, `game-feel`, `dialogue-systems`, `save-systems`
 - **Memory Base**: Located in `.agents/memory/`
+
