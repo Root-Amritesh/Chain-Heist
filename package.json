@@ -1,0 +1,13 @@
+{
+  "name": "bit-hunter-2099",
+  "version": "1.0.0",
+  "description": "BIT-HUNTER 2099 - Cyberpunk Blockchain Arcade RPG",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^6.0.0"
+  }
+}
