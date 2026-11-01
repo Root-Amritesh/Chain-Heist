@@ -1,0 +1,18 @@
+/assets/images/*
+!/assets/images/bithunter
+/assets/fonts
+/assets/audio
+.DS_Store
+tasks-wip.todo
+notes.md
+node_modules
+.vscode/vscode-kanban.json
+
+# related to bundling
+all-game-assets.zip
+/dist
+downloaded-Stuffs/
+scratch/
+test-results/
+.vite/
+
