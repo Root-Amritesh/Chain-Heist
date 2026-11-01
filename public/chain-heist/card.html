@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CHAIN HEIST — Proof-of-Play Card</title>
+  <meta name="description" content="Your proof-of-play digital card from Chain Heist: Rewrite History." />
+  <style>
+    body {
+      overflow-y: auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .card-wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+      animation: fadeInUp 0.8s ease-out;
+    }
+
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(30px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .proof-card {
+      width: min(400px, 90vw);
+      background: linear-gradient(145deg, rgba(26,26,46,0.95), rgba(10,10,15,0.98));
+      border: 1px solid rgba(0,240,255,0.25);
+      border-radius: 16px;
+      overflow: hidden;
+      position: relative;
+      box-shadow:
+        0 0 30px rgba(0,240,255,0.1),
+        0 0 80px rgba(191,0,255,0.05),
+        inset 0 1px 0 rgba(255,255,255,0.05);
+    }
+
+    .proof-card::before {
+      content: '';
+      position: absolute;
+      top: -50%; left: -50%;
+      width: 200%; height: 200%;
+      background: conic-gradient(
+        from 0deg,
+        transparent 0deg,
+        rgba(0,240,255,0.03) 60deg,
+        transparent 120deg,
+        rgba(191,0,255,0.03) 180deg,
+        transparent 240deg,
+        rgba(0,255,65,0.03) 300deg,
+        transparent 360deg
+      );
+      animation: holoSpin 8s linear infinite;
+      pointer-events: none;
+    }
+
+    @keyframes holoSpin {
+      to { transform: rotate(360deg); }
+    }
+
+    .card-header {
+      padding: 20px 24px 16px;
+      border-bottom: 1px solid rgba(0,240,255,0.1);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: relative;
+      z-index: 1;
+    }
+
+    .card-header-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .card-icon { font-size: 1.5rem; }
+
+    .card-game-title {
+      font-family: var(--font-heading);
+      font-size: 0.65rem;
+      color: var(--accent-cyan);
+      text-transform: uppercase;
+      letter-spacing: 3px;
+    }
+
+    .card-badge {
+      font-family: var(--font-mono);
+      font-size: 0.5rem;
+      color: var(--block-valid);
+      padding: 3px 8px;
+      border: 1px solid rgba(0,255,65,0.3);
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .card-body {
+      padding: 20px 24px;
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .card-player-name {
+      font-family: var(--font-heading);
+      font-size: 1.8rem;
+      font-weight: 900;
+      color: var(--ghost-white);
+      text-shadow: 0 0 10px rgba(255,255,255,0.1);
+    }
+
+    .card-result {
+      font-family: var(--font-heading);
+      font-size: 0.8rem;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+
+    .card-result.win {
+      color: var(--block-valid);
+      text-shadow: 0 0 8px rgba(0,255,65,0.5);
+    }
+
+    .card-result.lose {
+      color: var(--block-broken);
+      text-shadow: 0 0 8px rgba(255,0,64,0.5);
+    }
+
+    .card-stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .card-stat {
+      background: rgba(0,240,255,0.03);
+      border: 1px solid rgba(0,240,255,0.1);
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+
+    .card-stat-label {
+      font-family: var(--font-mono);
+      font-size: 0.5rem;
+      color: rgba(0,240,255,0.45);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .card-stat-value {
+      font-family: var(--font-heading);
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: var(--accent-cyan);
+      text-shadow: 0 0 6px rgba(0,240,255,0.3);
+    }
+
+    .card-hash-section {
+      border-top: 1px solid rgba(0,240,255,0.1);
+      padding-top: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .card-hash-label {
+      font-family: var(--font-mono);
+      font-size: 0.5rem;
+      color: rgba(0,240,255,0.4);
+      text-transform: uppercase;
+      letter-spacing: 2px;
+    }
+
+    .card-hash-value {
+      font-family: var(--font-mono);
+      font-size: 0.55rem;
+      color: var(--accent-cyan);
+      opacity: 0.6;
+      word-break: break-all;
+      line-height: 1.5;
+    }
+
+    .card-footer {
+      padding: 12px 24px;
+      border-top: 1px solid rgba(0,240,255,0.08);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: relative;
+      z-index: 1;
+    }
+
+    .card-footer-text {
+      font-family: var(--font-mono);
+      font-size: 0.45rem;
+      color: rgba(0,240,255,0.3);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .card-timestamp {
+      font-family: var(--font-mono);
+      font-size: 0.45rem;
+      color: rgba(0,240,255,0.25);
+    }
+
+    /* ── Share / Download ── */
+    .card-actions {
+      display: flex;
+      gap: 12px;
+    }
+
+    .card-action-btn {
+      padding: 10px 24px;
+      font-family: var(--font-heading);
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: #fff;
+      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+      box-shadow: 0 0 10px rgba(0,240,255,0.3);
+    }
+
+    .card-action-btn:hover {
+      transform: scale(1.05);
+      box-shadow: 0 0 20px rgba(0,240,255,0.5);
+    }
+
+    .card-play-link {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: var(--accent-cyan);
+      text-decoration: none;
+      transition: color 0.3s;
+    }
+
+    .card-play-link:hover {
+      color: #fff;
+      text-shadow: 0 0 8px rgba(0,240,255,0.5);
+    }
+  </style>
+  <link rel="stylesheet" crossorigin href="./assets/main-CIOquL2t.css">
+</head>
+<body>
+  <div class="card-wrapper" id="card-wrapper">
+    <div class="proof-card" id="proof-card">
+      <div class="card-header">
+        <div class="card-header-left">
+          <span class="card-icon">⛓️‍💥</span>
+          <span class="card-game-title">Chain Heist</span>
+        </div>
+        <span class="card-badge" id="card-badge">Proof of Play</span>
+      </div>
+      <div class="card-body">
+        <div class="card-player-name" id="card-name">ANON</div>
+        <div class="card-result win" id="card-result">HISTORY REWRITTEN</div>
+        <div class="card-stats">
+          <div class="card-stat">
+            <div class="card-stat-label">Score</div>
+            <div class="card-stat-value" id="card-score">0</div>
+          </div>
+          <div class="card-stat">
+            <div class="card-stat-label">Max Combo</div>
+            <div class="card-stat-value" id="card-combo">0x</div>
+          </div>
+          <div class="card-stat">
+            <div class="card-stat-label">Level</div>
+            <div class="card-stat-value" id="card-level">1</div>
+          </div>
+          <div class="card-stat">
+            <div class="card-stat-label">Difficulty</div>
+            <div class="card-stat-value" id="card-difficulty">—</div>
+          </div>
+        </div>
+        <div class="card-hash-section">
+          <div class="card-hash-label">Proof-of-Heist SHA-256</div>
+          <div class="card-hash-value" id="card-hash">—</div>
+        </div>
+      </div>
+      <div class="card-footer">
+        <span class="card-footer-text">Powered by Real SHA-256 Cryptography</span>
+        <span class="card-timestamp" id="card-timestamp"></span>
+      </div>
+    </div>
+
+    <div class="card-actions">
+      <a href="/" class="card-play-link">🎮 Play Chain Heist →</a>
+    </div>
+  </div>
+
+  <script>
+    const DIFFICULTY_NAMES = {
+      1: 'Small Net',
+      2: 'Growing',
+      3: 'Mainnet',
+      4: 'Ethereum',
+      5: 'Bitcoin',
+    };
+
+    function getParams() {
+      const params = new URLSearchParams(window.location.search);
+      return {
+        name: params.get('name') || 'ANON',
+        score: parseInt(params.get('score') || '0', 10),
+        combo: parseInt(params.get('combo') || '0', 10),
+        level: parseInt(params.get('level') || '1', 10),
+        hash: params.get('hash') || '—',
+      };
+    }
+
+    function render() {
+      const p = getParams();
+      document.getElementById('card-name').textContent = p.name;
+      document.getElementById('card-score').textContent = p.score.toLocaleString();
+      document.getElementById('card-combo').textContent = p.combo + 'x';
+      document.getElementById('card-level').textContent = 'L' + p.level;
+      document.getElementById('card-difficulty').textContent = DIFFICULTY_NAMES[p.level] || '—';
+      document.getElementById('card-hash').textContent = p.hash;
+      document.getElementById('card-timestamp').textContent = new Date().toISOString().split('T')[0];
+
+      // Determine win/lose from score
+      const resultEl = document.getElementById('card-result');
+      if (p.score > 0) {
+        resultEl.textContent = '✅ HISTORY REWRITTEN';
+        resultEl.className = 'card-result win';
+      } else {
+        resultEl.textContent = '❌ CHAIN REJECTED';
+        resultEl.className = 'card-result lose';
+      }
+
+      document.title = `${p.name}'s Chain Heist — Proof-of-Play`;
+    }
+
+    render();
+  </script>
+</body>
+</html>

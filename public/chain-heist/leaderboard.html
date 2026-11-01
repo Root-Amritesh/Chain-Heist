@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CHAIN HEIST — Live Leaderboard</title>
+  <meta name="description" content="Live leaderboard for Chain Heist: Rewrite History blockchain hacking game." />
+  <style>
+    body {
+      overflow-y: auto;
+    }
+
+    .lb-container {
+      max-width: 700px;
+      margin: 0 auto;
+      padding: 40px 20px 60px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 24px;
+      min-height: 100vh;
+    }
+
+    .lb-header {
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .lb-emoji { font-size: 2.5rem; }
+
+    .lb-title {
+      font-family: var(--font-heading);
+      font-size: clamp(1.5rem, 4vw, 2.5rem);
+      font-weight: 900;
+      color: var(--accent-cyan);
+      text-shadow: 0 0 10px rgba(0,240,255,0.8), 0 0 40px rgba(0,240,255,0.4);
+      letter-spacing: 3px;
+    }
+
+    .lb-subtitle {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: rgba(0,240,255,0.4);
+      text-transform: uppercase;
+      letter-spacing: 2px;
+    }
+
+    .lb-live-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      color: var(--block-valid);
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      padding: 4px 12px;
+      border: 1px solid rgba(0,255,65,0.3);
+      border-radius: 20px;
+      background: rgba(0,255,65,0.05);
+    }
+
+    .lb-live-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--block-valid);
+      animation: livePulse 1.5s ease-in-out infinite;
+    }
+
+    @keyframes livePulse {
+      0%, 100% { opacity: 1; box-shadow: 0 0 4px var(--block-valid); }
+      50% { opacity: 0.3; box-shadow: none; }
+    }
+
+    /* ── Leaderboard Entries ── */
+    .lb-list {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .lb-entry {
+      display: grid;
+      grid-template-columns: 48px 1fr auto;
+      align-items: center;
+      gap: 16px;
+      padding: 14px 18px;
+      background: rgba(26,26,46,0.7);
+      border: 1px solid rgba(0,240,255,0.12);
+      border-radius: 10px;
+      transition: all 0.4s;
+      animation: fadeInUp 0.5s ease-out forwards;
+      opacity: 0;
+    }
+
+    .lb-entry:hover {
+      border-color: rgba(0,240,255,0.3);
+      background: rgba(26,26,46,0.9);
+      box-shadow: 0 0 20px rgba(0,240,255,0.1);
+    }
+
+    .lb-entry.top-1 {
+      border-color: rgba(255,215,0,0.5);
+      background: rgba(255,215,0,0.05);
+    }
+    .lb-entry.top-2 {
+      border-color: rgba(192,192,192,0.4);
+      background: rgba(192,192,192,0.03);
+    }
+    .lb-entry.top-3 {
+      border-color: rgba(205,127,50,0.4);
+      background: rgba(205,127,50,0.03);
+    }
+
+    .lb-rank {
+      font-family: var(--font-heading);
+      font-size: 1.4rem;
+      font-weight: 800;
+      text-align: center;
+    }
+    .top-1 .lb-rank { color: #ffd700; text-shadow: 0 0 10px rgba(255,215,0,0.5); }
+    .top-2 .lb-rank { color: #c0c0c0; text-shadow: 0 0 10px rgba(192,192,192,0.4); }
+    .top-3 .lb-rank { color: #cd7f32; text-shadow: 0 0 10px rgba(205,127,50,0.4); }
+    .lb-rank { color: var(--accent-cyan); }
+
+    .lb-info {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      overflow: hidden;
+    }
+
+    .lb-name {
+      font-family: var(--font-heading);
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--ghost-white);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .lb-meta {
+      display: flex;
+      gap: 12px;
+      font-family: var(--font-mono);
+      font-size: 0.55rem;
+      color: rgba(0,240,255,0.45);
+    }
+
+    .lb-hash {
+      font-family: var(--font-mono);
+      font-size: 0.5rem;
+      color: rgba(0,240,255,0.3);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .lb-score {
+      font-family: var(--font-heading);
+      font-size: 1.4rem;
+      font-weight: 800;
+      color: var(--accent-cyan);
+      text-shadow: 0 0 8px rgba(0,240,255,0.4);
+      white-space: nowrap;
+    }
+
+    /* ── Whale Alert ── */
+    .whale-alert {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      padding: 16px;
+      background: linear-gradient(135deg, rgba(255,0,64,0.9), rgba(191,0,255,0.9));
+      text-align: center;
+      font-family: var(--font-heading);
+      font-size: 1.3rem;
+      font-weight: 800;
+      color: #fff;
+      letter-spacing: 3px;
+      z-index: 500;
+      animation: whaleSlide 0.5s ease-out;
+      text-shadow: 0 0 10px rgba(255,255,255,0.3);
+    }
+
+    @keyframes whaleSlide {
+      from { transform: translateY(-100%); }
+      to { transform: translateY(0); }
+    }
+
+    /* ── Empty State ── */
+    .lb-empty {
+      text-align: center;
+      padding: 60px 20px;
+      font-family: var(--font-mono);
+      color: rgba(0,240,255,0.3);
+      font-size: 0.85rem;
+    }
+
+    .lb-empty-icon { font-size: 3rem; margin-bottom: 12px; }
+
+    /* ── Player Activity Feed ── */
+    .activity-feed {
+      position: fixed;
+      bottom: 16px;
+      right: 16px;
+      width: 280px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      z-index: 100;
+      pointer-events: none;
+    }
+
+    .activity-item {
+      padding: 8px 12px;
+      background: rgba(26,26,46,0.9);
+      border: 1px solid rgba(0,240,255,0.15);
+      border-radius: 6px;
+      font-family: var(--font-mono);
+      font-size: 0.6rem;
+      color: var(--ghost-white);
+      animation: activityIn 0.3s ease-out;
+      backdrop-filter: blur(8px);
+    }
+
+    @keyframes activityIn {
+      from { opacity: 0; transform: translateX(50px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+  </style>
+  <script type="module" crossorigin src="./assets/leaderboard-C00m-pwD.js"></script>
+  <link rel="modulepreload" crossorigin href="./assets/storage-mJ6fXDOC.js">
+  <link rel="stylesheet" crossorigin href="./assets/storage-CrnTR1Zj.css">
+  <link rel="stylesheet" crossorigin href="./assets/main-CIOquL2t.css">
+</head>
+<body>
+  <div class="lb-container">
+    <div class="lb-header">
+      <div class="lb-emoji">⛓️‍💥</div>
+      <h1 class="lb-title glitch" data-text="LEADERBOARD">LEADERBOARD</h1>
+      <div class="lb-subtitle">CHAIN HEIST: Rewrite History</div>
+      <div class="lb-live-badge"><span class="lb-live-dot"></span> LIVE</div>
+    </div>
+    <div class="lb-list" id="lb-list">
+      <div class="lb-empty">
+        <div class="lb-empty-icon">🔓</div>
+        No heists yet — be the first to rewrite history.
+      </div>
+    </div>
+  </div>
+  <div class="activity-feed" id="activity-feed"></div>
+
+</body>
+</html>

@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CHAIN HEIST: Rewrite History — Blockchain Hacking Game</title>
+  <meta name="description" content="A high-adrenaline arcade-style blockchain hacking game. Tamper with the chain. Re-mine the blocks. Outrun the network. Rewrite history." />
+  <script type="module" crossorigin src="./assets/main-BcJV18QT.js"></script>
+  <link rel="modulepreload" crossorigin href="./assets/storage-mJ6fXDOC.js">
+  <link rel="stylesheet" crossorigin href="./assets/storage-CrnTR1Zj.css">
+  <link rel="stylesheet" crossorigin href="./assets/main-CIOquL2t.css">
+</head>
+<body>
+  <div id="game-container">
+    <!-- Phaser canvas renders here -->
+    <div id="phaser-canvas"></div>
+
+    <!-- UI Overlay -->
+    <div id="ui-overlay">
+      <!-- Audio Controls -->
+      <div class="audio-controls">
+        <button class="audio-btn" id="btn-mute" title="Toggle Sound">🔊</button>
+      </div>
+
+      <!-- HUD (during race) -->
+      <div id="hud">
+        <div class="hud-item">
+          <span class="hud-label">Time</span>
+          <span class="hud-value timer" id="hud-timer">90</span>
+        </div>
+        <div class="hud-item">
+          <span class="hud-label">Score</span>
+          <span class="hud-value" id="hud-score">0</span>
+        </div>
+        <div class="hud-item">
+          <span class="hud-label">Combo</span>
+          <span class="hud-value" id="hud-combo">0x</span>
+        </div>
+        <div class="hud-item">
+          <span class="hud-label">Blocks</span>
+          <span class="hud-value" id="hud-blocks">0/6</span>
+        </div>
+        <div class="hud-item">
+          <span class="hud-label">Coins</span>
+          <span class="hud-value hud-coins" id="hud-coins">0</span>
+        </div>
+      </div>
+
+      <!-- Splash Screen -->
+      <div id="splash-screen">
+        <div class="splash-chain-emoji">⛓️‍💥</div>
+        <h1 class="splash-title glitch" data-text="CHAIN HEIST">CHAIN HEIST</h1>
+        <p class="splash-subtitle">Rewrite History — Tamper with the chain. Re-mine the blocks. Outrun the network.</p>
+
+        <div class="name-input-group">
+          <label for="player-name">Hacker Alias</label>
+          <input type="text" id="player-name" placeholder="Enter your name..." maxlength="20" autocomplete="off" />
+        </div>
+
+        <div class="difficulty-selector" id="difficulty-selector">
+          <button class="diff-btn" data-level="1">L1: Small Network</button>
+          <button class="diff-btn active" data-level="2">L2: Growing</button>
+          <button class="diff-btn" data-level="3">L3: Mainnet</button>
+          <button class="diff-btn" data-level="4">L4: Ethereum</button>
+          <button class="diff-btn" data-level="5">L5: Bitcoin</button>
+        </div>
+
+        <button class="btn-hack" id="btn-start">🔴 HACK THE CHAIN</button>
+        <span class="badge-sha">Powered by Real SHA-256 Cryptography</span>
+      </div>
+
+      <!-- Tamper Screen -->
+      <div id="tamper-screen">
+        <p class="tamper-instruction glitch" data-text="SELECT BLOCK #4 TO TAMPER">SELECT BLOCK #4 TO TAMPER</p>
+        <div id="tamper-chain"></div>
+      </div>
+
+      <!-- Race / Nonce Spinner Screen -->
+      <div id="race-screen">
+        <div class="spinner-container" id="spinner-container">
+          <div class="spinner-block-info" id="spinner-block-label">RE-MINING BLOCK #5</div>
+
+          <div class="hash-display" id="hash-display">
+            <!-- Hash rows rendered dynamically -->
+          </div>
+
+          <div class="spinner-target-label" id="target-label" style="display:none;">
+            ⚡ TARGET VISIBLE — HIT SPACE NOW! ⚡
+          </div>
+
+          <div class="spinner-action-hint">
+            Press SPACE or CLICK to lock nonce
+          </div>
+        </div>
+
+        <!-- Network race bar -->
+        <div class="network-bar-container">
+          <div class="network-bar-label">Honest Network Progress ⛏️</div>
+          <div class="network-bar-track">
+            <div class="network-bar-fill" id="network-bar-fill"></div>
+          </div>
+        </div>
+
+        <!-- Power-up buttons -->
+        <div class="powerup-bar" id="powerup-bar">
+          <button class="powerup-btn" id="btn-hashpower" disabled>🖥️ Rent Hashpower (50 🪙)</button>
+          <button class="powerup-btn" id="btn-bribe" disabled>🤝 Bribe Validator (100 🪙)</button>
+        </div>
+      </div>
+
+      <!-- Chain mini-display -->
+      <div id="chain-display"></div>
+
+      <!-- Result Screen (Win / Lose) -->
+      <div id="result-screen">
+        <h1 class="result-title" id="result-title"></h1>
+        <p class="result-subtitle" id="result-subtitle"></p>
+        <div class="result-stats" id="result-stats"></div>
+        <div class="result-hash" id="result-hash"></div>
+        <div class="result-rank" id="result-rank"></div>
+        <div id="qr-canvas-container">
+          <canvas id="qr-canvas"></canvas>
+          <span class="qr-label">Scan for Proof-of-Play Card</span>
+        </div>
+        <button class="btn-play-again" id="btn-play-again">🔄 PLAY AGAIN</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    if (typeof BroadcastChannel !== 'undefined') {
+      try {
+        const bc = new BroadcastChannel('chain_heist_channel');
+        bc.onmessage = (ev) => {
+          if (window.parent && window.parent !== window) {
+            window.parent.postMessage({ type: 'CHAIN_HEIST_EVENT', data: ev.data }, '*');
+          }
+        };
+      } catch (err) {}
+    }
+  </script>
+</body>
+</html>
