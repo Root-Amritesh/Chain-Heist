@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "rewrites": [
+    {
+      "source": "/api/leaderboard/status",
+      "destination": "/api/leaderboard?status=1"
+    },
+    {
+      "source": "/api/leaderboard",
+      "destination": "/api/leaderboard"
+    }
+  ]
+}

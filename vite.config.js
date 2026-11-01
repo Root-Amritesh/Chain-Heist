@@ -1,5 +1,22 @@
 import { defineConfig } from 'vite';
 import { mongoLeaderboard } from './server/mongo-leaderboard.js';
+import fs from 'fs';
+import path from 'path';
+
+function copyAssetsPlugin() {
+  return {
+    name: 'copy-game-assets',
+    closeBundle() {
+      const srcDir = path.resolve(process.cwd(), 'assets');
+      const destDir = path.resolve(process.cwd(), 'dist', 'assets');
+      if (fs.existsSync(srcDir)) {
+        console.log(`[Vite Build] Copying game assets from ${srcDir} to ${destDir}...`);
+        fs.cpSync(srcDir, destDir, { recursive: true });
+        console.log('[Vite Build] Game assets successfully copied to dist/assets!');
+      }
+    },
+  };
+}
 
 export default defineConfig({
   server: {
@@ -8,6 +25,7 @@ export default defineConfig({
     host: true,
   },
   plugins: [
+    copyAssetsPlugin(),
     {
       name: 'api-mongodb-leaderboard',
       configureServer(server) {
