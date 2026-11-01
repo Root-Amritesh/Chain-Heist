@@ -62,62 +62,24 @@ export class PreloadScene extends BaseScene {
     // battle backgrounds
     this.load.image(
       BATTLE_BACKGROUND_ASSET_KEYS.FOREST,
-      `${monsterTamerAssetPath}/battle-backgrounds/forest-background.png`
+      'assets/images/bithunter/maps/neo-city.png'
     );
-
-    // battle assets
-    this.load.image(BATTLE_ASSET_KEYS.HEALTH_BAR_BACKGROUND, `${kenneysAssetPath}/ui-space-expansion/custom-ui.png`);
-    this.load.image(BATTLE_ASSET_KEYS.BALL_THUMBNAIL, `${monsterTamerAssetPath}/battle/cosmoball.png`);
-    this.load.image(BATTLE_ASSET_KEYS.DAMAGED_BALL, `${monsterTamerAssetPath}/battle/damagedBall.png`);
-    this.load.image(BATTLE_ASSET_KEYS.TRAINER_YOUTH_BOY, `${monsterTamerAssetPath}/battle/trainer_youth_boy.png`);
-    this.load.image(BATTLE_ASSET_KEYS.TRAINER_YOUTH_GIRL, `${monsterTamerAssetPath}/battle/trainer_youth_girl.png`);
 
     // health bar assets
-    this.load.image(
-      HEALTH_BAR_ASSET_KEYS.RIGHT_CAP,
-      `${kenneysAssetPath}/ui-space-expansion/barHorizontal_green_right.png`
-    );
-    this.load.image(HEALTH_BAR_ASSET_KEYS.MIDDLE, `${kenneysAssetPath}/ui-space-expansion/barHorizontal_green_mid.png`);
-    this.load.image(
-      HEALTH_BAR_ASSET_KEYS.LEFT_CAP,
-      `${kenneysAssetPath}/ui-space-expansion/barHorizontal_green_left.png`
-    );
-
-    // exp bar assets
-    this.load.image(
-      EXP_BAR_ASSET_KEYS.EXP_RIGHT_CAP,
-      `${kenneysAssetPath}/ui-space-expansion/barHorizontal_blue_right.png`
-    );
-    this.load.image(EXP_BAR_ASSET_KEYS.EXP_MIDDLE, `${kenneysAssetPath}/ui-space-expansion/barHorizontal_blue_mid.png`);
-    this.load.image(
-      EXP_BAR_ASSET_KEYS.EXP_LEFT_CAP,
-      `${kenneysAssetPath}/ui-space-expansion/barHorizontal_blue_left.png`
-    );
-
-    this.load.image(
-      HEALTH_BAR_ASSET_KEYS.RIGHT_CAP_SHADOW,
-      `${kenneysAssetPath}/ui-space-expansion/barHorizontal_shadow_right.png`
-    );
-    this.load.image(
-      HEALTH_BAR_ASSET_KEYS.MIDDLE_SHADOW,
-      `${kenneysAssetPath}/ui-space-expansion/barHorizontal_shadow_mid.png`
-    );
-    this.load.image(
-      HEALTH_BAR_ASSET_KEYS.LEFT_CAP_SHADOW,
-      `${kenneysAssetPath}/ui-space-expansion/barHorizontal_shadow_left.png`
-    );
-
-    // monster assets
-    this.load.image(MONSTER_ASSET_KEYS.CARNODUSK, `${monsterTamerAssetPath}/monsters/carnodusk.png`);
-    this.load.image(MONSTER_ASSET_KEYS.IGUANIGNITE, `${monsterTamerAssetPath}/monsters/iguanignite.png`);
-    this.load.image(MONSTER_ASSET_KEYS.AQUAVALOR, `${monsterTamerAssetPath}/monsters/aquavalor.png`);
-    this.load.image(MONSTER_ASSET_KEYS.FROSTSABER, `${monsterTamerAssetPath}/monsters/frostsaber.png`);
-    this.load.image(MONSTER_ASSET_KEYS.IGNIVOLT, `${monsterTamerAssetPath}/monsters/ignivolt.png`);
+    this.load.image(HEALTH_BAR_ASSET_KEYS.RIGHT_CAP, 'assets/images/bithunter/ui/hp-bar-green.png');
+    this.load.image(HEALTH_BAR_ASSET_KEYS.MIDDLE, 'assets/images/bithunter/ui/hp-bar-green.png');
+    this.load.image(HEALTH_BAR_ASSET_KEYS.LEFT_CAP, 'assets/images/bithunter/ui/hp-bar-green.png');
+    this.load.image(EXP_BAR_ASSET_KEYS.EXP_RIGHT_CAP, 'assets/images/bithunter/ui/hp-bar-pink.png');
+    this.load.image(EXP_BAR_ASSET_KEYS.EXP_MIDDLE, 'assets/images/bithunter/ui/hp-bar-pink.png');
+    this.load.image(EXP_BAR_ASSET_KEYS.EXP_LEFT_CAP, 'assets/images/bithunter/ui/hp-bar-pink.png');
+    this.load.image(HEALTH_BAR_ASSET_KEYS.RIGHT_CAP_SHADOW, 'assets/images/bithunter/ui/hp-bar-pink.png');
+    this.load.image(HEALTH_BAR_ASSET_KEYS.MIDDLE_SHADOW, 'assets/images/bithunter/ui/hp-bar-pink.png');
+    this.load.image(HEALTH_BAR_ASSET_KEYS.LEFT_CAP_SHADOW, 'assets/images/bithunter/ui/hp-bar-pink.png');
 
     // ui assets
-    this.load.image(UI_ASSET_KEYS.CURSOR, `${monsterTamerAssetPath}/ui/cursor.png`);
-    this.load.image(UI_ASSET_KEYS.CURSOR_WHITE, `${monsterTamerAssetPath}/ui/cursor_white.png`);
-    this.load.image(UI_ASSET_KEYS.MENU_BACKGROUND, `${kenneysAssetPath}/ui-space-expansion/glassPanel.png`);
+    this.load.image(UI_ASSET_KEYS.CURSOR, 'assets/images/bithunter/ui/cursor.png');
+    this.load.image(UI_ASSET_KEYS.CURSOR_WHITE, 'assets/images/bithunter/ui/cursor.png');
+    this.load.image(UI_ASSET_KEYS.MENU_BACKGROUND, 'assets/images/bithunter/ui/panel-network.png');
     this.load.image(
       UI_ASSET_KEYS.MENU_BACKGROUND_PURPLE,
       'assets/images/bithunter/ui/panel-network.png'
@@ -180,26 +142,26 @@ export class PreloadScene extends BaseScene {
     this.load.image('HACKER_APE_3', 'assets/images/bithunter/enemies/ape-3.png');
 
     // ui components for title
-    this.load.image(TITLE_ASSET_KEYS.BACKGROUND, `${monsterTamerAssetPath}/ui/title/background.png`);
-    this.load.image(TITLE_ASSET_KEYS.PANEL, `${monsterTamerAssetPath}/ui/title/title_background.png`);
-    this.load.image(TITLE_ASSET_KEYS.TITLE, `${monsterTamerAssetPath}/ui/title/title_text.png`);
+    this.load.image(TITLE_ASSET_KEYS.BACKGROUND, 'assets/images/bithunter/maps/neo-city.png');
+    this.load.image(TITLE_ASSET_KEYS.PANEL, 'assets/images/bithunter/ui/panel-network.png');
+    this.load.image(TITLE_ASSET_KEYS.TITLE, 'assets/images/bithunter/ui/logo-bit-hunter.png');
 
     // ui components for monster party
     this.load.image(
       MONSTER_PARTY_ASSET_KEYS.PARTY_BACKGROUND,
-      `${monsterTamerAssetPath}/ui/monster-party/background.png`
+      'assets/images/bithunter/ui/panel-network.png'
     );
     this.load.image(
       MONSTER_PARTY_ASSET_KEYS.MONSTER_DETAILS_BACKGROUND,
-      `${monsterTamerAssetPath}/ui/monster-party/monster-details-background.png`
+      'assets/images/bithunter/ui/panel-network.png'
     );
 
     // ui components for inventory
     this.load.image(
       INVENTORY_ASSET_KEYS.INVENTORY_BACKGROUND,
-      `${monsterTamerAssetPath}/ui/inventory/bag_background.png`
+      'assets/images/bithunter/ui/panel-inventory.png'
     );
-    this.load.image(INVENTORY_ASSET_KEYS.INVENTORY_BAG, `${monsterTamerAssetPath}/ui/inventory/bag.png`);
+    this.load.image(INVENTORY_ASSET_KEYS.INVENTORY_BAG, 'assets/images/bithunter/items/hw-wallet.png');
 
     // load audio
     this.load.setPath('assets/audio/xDeviruchi');
