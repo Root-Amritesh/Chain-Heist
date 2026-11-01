@@ -1,0 +1,118 @@
+{
+  "1": {
+    "requires": [],
+    "events": [
+      {
+        "type": "ADD_NPC",
+        "data": {
+          "direction": "DOWN",
+          "x": 16,
+          "y": 73,
+          "frame": 30,
+          "id": 1001,
+          "animationKeyPrefix": "NPC_4"
+        }
+      },
+      {
+        "type": "MOVE_TO_PLAYER",
+        "data": {
+          "id": 1001
+        }
+      },
+      {
+        "type": "TALK_TO_PLAYER",
+        "data": {
+          "id": 1001,
+          "messages": [
+            "Emergency broadcast! Rogue hacker apes have attacked Neo-City's central blockchain nodes!",
+            "Our consensus protocols are destabilizing rapidly.",
+            "Prof. Ledger has deployed you to secure 3 districts before the clock hits zero!"
+          ]
+        }
+      },
+      {
+        "type": "RETRACE_PATH",
+        "data": {
+          "id": 1001,
+          "direction": "DOWN"
+        }
+      },
+      {
+        "type": "REMOVE_NPC",
+        "data": {
+          "id": 1001
+        }
+      },
+      {
+        "type": "ADD_FLAG",
+        "data": {
+          "flag": "LOOKING_FOR_PROFESSOR"
+        }
+      }
+    ]
+  },
+  "2": {
+    "requires": ["LOOKING_FOR_PROFESSOR"],
+    "events": [
+      {
+        "type": "ADD_NPC",
+        "data": {
+          "direction": "DOWN",
+          "x": 20,
+          "y": 62,
+          "frame": 40,
+          "id": 1002,
+          "animationKeyPrefix": "NPC_5"
+        }
+      },
+      {
+        "type": "MOVE_TO_PLAYER",
+        "data": {
+          "id": 1002
+        }
+      },
+      {
+        "type": "TALK_TO_PLAYER",
+        "data": {
+          "id": 1002,
+          "messages": [
+            "Hold on right there, Hunter!",
+            "Breaching the firewall zone without a defensive crypto-bot is suicide.",
+            "Take this Cyber-Ignite unit to shield your wallet!"
+          ]
+        }
+      },
+      {
+        "type": "GIVE_MONSTER",
+        "data": {
+          "id": 1
+        }
+      },
+      {
+        "type": "RETRACE_PATH",
+        "data": {
+          "id": 1002,
+          "direction": "DOWN"
+        }
+      },
+      {
+        "type": "REMOVE_NPC",
+        "data": {
+          "id": 1002
+        }
+      },
+      {
+        "type": "REMOVE_FLAG",
+        "data": {
+          "flag": "LOOKING_FOR_PROFESSOR"
+        }
+      },
+      {
+        "type": "ADD_FLAG",
+        "data": {
+          "flag": "FOUND_PROFESSOR"
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,56 @@
+{
+  "1": {
+    "frame": 30,
+    "events": [
+      {
+        "type": "MESSAGE",
+        "data": {
+          "messages": [
+            "You should take a quick rest."
+          ]
+        }
+      }
+    ]
+  },
+  "2": {
+    "frame": 20,
+    "events": [
+      {
+        "type": "MESSAGE",
+        "data": {
+          "messages": [
+            "Make sure you read the signposts for helpful tips!"
+          ]
+        }
+      }
+    ]
+  },
+  "3": {
+    "frame": 0,
+    "events": [
+      {
+        "type": "MESSAGE",
+        "data": {
+          "messages": [
+            "You can save your game from the menu.",
+            "To open the menu, press the ENTER key."
+          ]
+        }
+      }
+    ]
+  },
+  "4": {
+    "frame": 10,
+    "events": [
+      {
+        "type": "MESSAGE",
+        "data": {
+          "messages": [
+            "CHAIN HEIST OPERATIVE: The blockchain timeline has been breached!",
+            "Head north to the dead end of the neon alley past SSATER to find the CHAIN HEIST portal and restore consensus!"
+          ]
+        }
+      }
+    ]
+  }
+}
