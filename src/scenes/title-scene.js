@@ -13,12 +13,14 @@ import { playBackgroundMusic } from '../utils/audio-utils.js';
 /** @type {Phaser.Types.GameObjects.Text.TextStyle} */
 const MENU_TEXT_STYLE = Object.freeze({
   fontFamily: KENNEY_FUTURE_NARROW_FONT_NAME,
-  color: '#4D4A49',
+  color: '#FFFFFF',
   fontSize: '30px',
+  stroke: '#000000',
+  strokeThickness: 3,
 });
 
 const PLAYER_INPUT_CURSOR_POSITION = Object.freeze({
-  x: 150,
+  x: 120,
   y: 41,
 });
 
@@ -80,18 +82,18 @@ export class TitleScene extends BaseScene {
     this.add.text(this.scale.width / 2, 150, 'CHAIN HEIST', {
       fontFamily: KENNEY_FUTURE_NARROW_FONT_NAME,
       fontSize: '52px',
-      color: '#36393B',
+      color: '#00FFEE',
       fontStyle: 'bold',
-      stroke: '#1A1C1D',
-      strokeThickness: 4,
+      stroke: '#050B14',
+      strokeThickness: 6,
       shadow: {
-        offsetX: 2,
-        offsetY: 2,
-        color: '#000000',
-        blur: 6,
+        offsetX: 0,
+        offsetY: 0,
+        color: '#00FFEE',
+        blur: 14,
         fill: true,
       },
-    }).setOrigin(0.5).setAlpha(0.65);
+    }).setOrigin(0.5);
 
     // 3. Original translucent nine-slice menu
     const menuBgWidth = 500;
@@ -118,7 +120,7 @@ export class TitleScene extends BaseScene {
     this.#mainMenuCursorPhaserImageGameObject = this.add
       .image(PLAYER_INPUT_CURSOR_POSITION.x, PLAYER_INPUT_CURSOR_POSITION.y, UI_ASSET_KEYS.CURSOR)
       .setOrigin(0.5)
-      .setScale(2.5);
+      .setScale(0.35);
     menuBgContainer.add(this.#mainMenuCursorPhaserImageGameObject);
     this.tweens.add({
       delay: 0,
