@@ -6,6 +6,7 @@ import { dataManager } from '../../utils/data-manager.js';
 import { runState } from '../../state/run-state.js';
 import { ScoreManager } from '../../systems/score-manager.js';
 import { TimeManager, SESSION_END_REASONS } from '../../systems/time-manager.js';
+import { MiniGameClock } from '../../minigames/clock.js';
 import {
   VAULT_TILE_SIZE,
   VAULT_MAZE_COLS,
@@ -168,6 +169,12 @@ export class VaultRunScene extends BaseScene {
   /** @type {Array<Phaser.GameObjects.Text>} */
   #modalButtonTexts = [];
 
+  /** @type {MiniGameClock | null} */
+  #clock = null;
+
+  /** @type {boolean} */
+  #hasReportedResult = false;
+
   constructor() {
     super({ key: SCENE_KEYS.VAULT_RUN_SCENE });
   }
@@ -211,6 +218,11 @@ export class VaultRunScene extends BaseScene {
     this.#modalSelectedIndex = 0;
     this.#modalButtonBgs = [];
     this.#modalButtonTexts = [];
+    this.#hasReportedResult = false;
+    if (this.#clock) {
+      this.#clock.destroy();
+      this.#clock = null;
+    }
   }
 
   create() {
@@ -230,6 +242,19 @@ export class VaultRunScene extends BaseScene {
     if (session) {
       this.#sessionId = session.sessionId;
     }
+
+    // Initialize monotonic MiniGameClock
+    this.#clock = new MiniGameClock(session?.sessionLimitMs || 90000);
+    this.#clock.onExpired(() => {
+      this.#triggerDefeat(SESSION_END_REASONS.TIMEOUT, 'SECURITY LOCKDOWN: PROTOCOL TIMEOUT');
+    });
+
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      if (this.#clock) {
+        this.#clock.destroy();
+        this.#clock = null;
+      }
+    });
 
     // 2. Draw Arcade Side Marquee & Neon Grid Background
     this.#drawBackgroundDetails();
@@ -297,6 +322,10 @@ export class VaultRunScene extends BaseScene {
 
   update(time, delta) {
     this.#updateTrail();
+
+    if (!this.#activeModalType && this.#isPlaying && !this.#isGameOver && !this.#hasWon) {
+      this.#clock?.update();
+    }
     this.#updateTimerDisplay();
 
     // If modal is active or game ended, do not tick gameplay
@@ -308,7 +337,7 @@ export class VaultRunScene extends BaseScene {
       this.#triggerDefeat(SESSION_END_REASONS.WORLD_TIME_UP, 'WORLD TIMELINE EXPIRED: REWRITE FAILED');
       return;
     }
-    if (timeStatus.sessionExpired) {
+    if (this.#clock?.hasExpired || timeStatus.sessionExpired) {
       this.#triggerDefeat(SESSION_END_REASONS.TIMEOUT, 'SECURITY LOCKDOWN: PROTOCOL TIMEOUT');
       return;
     }
@@ -646,11 +675,13 @@ export class VaultRunScene extends BaseScene {
   #updateTimerDisplay() {
     if (!this.#timerText?.scene || !this.#worldTimerText?.scene) return;
 
+    const formatted = this.#clock ? this.#clock.formatted : '01:30';
+    const remainingSec = this.#clock ? this.#clock.remainingSec : 90;
+    this.#timerText.setText(`TIME: ${formatted}`);
     const readout = TimeManager.getLiveReadout();
-    this.#timerText.setText(`TIME: ${readout.formattedSessionTime}`);
     this.#worldTimerText.setText(`WORLD: ${readout.formattedLiveWorldTime}`);
 
-    if (readout.sessionRemainingSec <= 10) {
+    if (remainingSec <= 15) {
       this.#timerText.setColor('#FF3366');
     } else {
       this.#timerText.setColor('#00E5FF');
@@ -780,6 +811,7 @@ export class VaultRunScene extends BaseScene {
       if (this.#activeModalType === 'exit') {
         this.#closeModal();
         TimeManager.resume();
+        this.#clock?.resume();
         this.#isPlaying = true;
       } else if (this.#activeModalType === 'death') {
         // Select NO (Abort) on ESC
@@ -871,6 +903,7 @@ export class VaultRunScene extends BaseScene {
             bannerText.destroy();
             countText.destroy();
             this.#isPlaying = true;
+            this.#clock?.start();
 
             // If player queued a direction during countdown, apply it immediately
             if (this.#player.nextDirX !== 0 || this.#player.nextDirY !== 0) {
@@ -1387,6 +1420,7 @@ export class VaultRunScene extends BaseScene {
   #showDeathModal() {
     this.#isPlaying = false;
     TimeManager.pause();
+    this.#clock?.pause();
     this.#activeModalType = 'death';
     this.#modalSelectedIndex = 0;
 
@@ -1497,6 +1531,7 @@ export class VaultRunScene extends BaseScene {
 
     this.#isPlaying = false;
     TimeManager.pause();
+    this.#clock?.pause();
     this.#activeModalType = 'exit';
     this.#modalSelectedIndex = 0;
 
@@ -1669,6 +1704,7 @@ export class VaultRunScene extends BaseScene {
         });
 
         TimeManager.resume();
+        this.#clock?.resume();
         this.#isPlaying = true;
         this.#showFloatingText(this.#player.x, this.#player.y - 20, 'SYSTEM RESTORED! GOOD LUCK', '#00FF66');
       } else {
@@ -1679,6 +1715,7 @@ export class VaultRunScene extends BaseScene {
       if (choice === 0) {
         // RESUME
         TimeManager.resume();
+        this.#clock?.resume();
         this.#isPlaying = true;
       } else {
         // ABORT & EXIT
@@ -1782,9 +1819,12 @@ export class VaultRunScene extends BaseScene {
   // WIN & DEFEAT OUTCOMES
   // ==========================================
   #triggerVictory() {
-    if (this.#hasWon || this.#isGameOver) return;
+    if (this.#hasWon || this.#isGameOver || this.#hasReportedResult) return;
+    this.#hasReportedResult = true;
     this.#hasWon = true;
     this.#isPlaying = false;
+    this.#clock?.stop();
+    if (this._controls) this._controls.lockInput = true;
     this.#closeModal();
 
     // End session with TimeManager
@@ -1846,9 +1886,12 @@ export class VaultRunScene extends BaseScene {
    * @param {string} [reasonMsg]
    */
   #triggerDefeat(reasonKey = SESSION_END_REASONS.DEFEAT, reasonMsg = 'SECURITY BREACH') {
-    if (this.#isGameOver || this.#hasWon) return;
+    if (this.#isGameOver || this.#hasWon || this.#hasReportedResult) return;
+    this.#hasReportedResult = true;
     this.#isGameOver = true;
     this.#isPlaying = false;
+    this.#clock?.stop();
+    if (this._controls) this._controls.lockInput = true;
     this.#closeModal();
 
     // End session with TimeManager

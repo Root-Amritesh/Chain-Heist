@@ -5,17 +5,18 @@ import { KENNEY_FUTURE_NARROW_FONT_NAME } from '../assets/font-keys.js';
 import { dataManager } from '../utils/data-manager.js';
 import { runState } from '../state/run-state.js';
 import { DIRECTION } from '../common/direction.js';
+import { leaderboard } from '../systems/leaderboard.js';
 
 const GRID_CHARS = [
   ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'],
   ['K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T'],
   ['U', 'V', 'W', 'X', 'Y', 'Z', '0', '1', '2', '3'],
-  ['4', '5', '6', '7', '8', '9', '_', 'DEL', 'OK'],
+  ['4', '5', '6', '7', '8', '9', '_', '-', 'DEL', 'OK'],
 ];
 
 export class NameInputScene extends BaseScene {
   /** @type {string} */
-  #playerName = 'HUNTER';
+  #playerName = '';
   /** @type {number} */
   #gridRow = 0;
   /** @type {number} */
@@ -41,7 +42,7 @@ export class NameInputScene extends BaseScene {
 
   create() {
     super.create();
-    this.#playerName = 'HUNTER';
+    this.#playerName = leaderboard.getDefaultHandle();
     this.#gridRow = 0;
     this.#gridCol = 0;
     this.#isConfirmed = false;
@@ -72,15 +73,15 @@ export class NameInputScene extends BaseScene {
       fontStyle: 'bold',
     }).setOrigin(0.5);
 
-    this.add.text(this.scale.width / 2, 56, 'REGISTER YOUR LEDGER ALIAS (3–12 CHARACTERS: A–Z, 0–9, _)', {
+    this.add.text(this.scale.width / 2, 56, 'REGISTER YOUR LEDGER ALIAS (3–12 CHARACTERS: A–Z, 0–9, _, -)', {
       fontFamily: KENNEY_FUTURE_NARROW_FONT_NAME,
       fontSize: '13px',
       color: '#A8A4C4',
     }).setOrigin(0.5);
 
     // Left sidebar: chosen cat preview
-    const catKey = dataManager.getPlayerCat();
-    const sideBox = this.add.rectangle(140, 290, 190, 360, 0x120d2a, 0.9)
+    const catKey = dataManager.getPlayerCat() || 'cat-1';
+    this.add.rectangle(140, 290, 190, 360, 0x120d2a, 0.9)
       .setStrokeStyle(2, 0x3FF0FF, 0.7);
 
     this.add.text(140, 130, 'ASSIGNED UNIT', {
@@ -142,7 +143,7 @@ export class NameInputScene extends BaseScene {
       color: '#A09CB8',
     }).setOrigin(1, 0.5);
 
-    // Blinking cursor after name
+    // Blinking cursor
     const cursorBar = this.add.rectangle(nameBoxX - 200, nameBoxY, 3, 30, 0x3FF0FF);
     this.time.addEvent({
       delay: 500,
@@ -153,7 +154,7 @@ export class NameInputScene extends BaseScene {
       },
     });
 
-    // Status / Warning message
+    // Status message
     this.#statusMessageText = this.add.text(nameBoxX, nameBoxY + 48, '', {
       fontFamily: KENNEY_FUTURE_NARROW_FONT_NAME,
       fontSize: '13px',
@@ -161,11 +162,11 @@ export class NameInputScene extends BaseScene {
     }).setOrigin(0.5);
 
     // Letter Grid Layout
-    const gridStartX = 320;
+    const gridStartX = 300;
     const gridStartY = 220;
-    const cellWidth = 52;
+    const cellWidth = 50;
     const cellHeight = 44;
-    const cellSpacingX = 14;
+    const cellSpacingX = 12;
     const cellSpacingY = 12;
 
     GRID_CHARS.forEach((row, r) => {
@@ -174,9 +175,8 @@ export class NameInputScene extends BaseScene {
 
       row.forEach((char, c) => {
         const isWide = char === 'DEL' || char === 'OK';
-        const currentWidth = isWide ? cellWidth * 1.5 : cellWidth;
-        const xOffset = isWide && char === 'OK' ? 26 : 0;
-        const cellX = gridStartX + c * (cellWidth + cellSpacingX) + currentWidth / 2 + xOffset;
+        const currentWidth = isWide ? cellWidth * 1.3 : cellWidth;
+        const cellX = gridStartX + c * (cellWidth + cellSpacingX) + currentWidth / 2;
         const cellY = gridStartY + r * (cellHeight + cellSpacingY) + cellHeight / 2;
 
         const tileBg = this.add.rectangle(cellX, cellY, currentWidth, cellHeight, 0x140f30, 0.85);
@@ -195,7 +195,7 @@ export class NameInputScene extends BaseScene {
 
         const tileText = this.add.text(cellX, cellY, char, {
           fontFamily: KENNEY_FUTURE_NARROW_FONT_NAME,
-          fontSize: isWide ? '16px' : '20px',
+          fontSize: isWide ? '15px' : '20px',
           color: labelColor,
           fontStyle: 'bold',
         }).setOrigin(0.5);
@@ -205,18 +205,18 @@ export class NameInputScene extends BaseScene {
       });
     });
 
-    // Footer instruction bar
-    const footerBg = this.add.rectangle(this.scale.width / 2, 520, 780, 42, 0x0c081e, 0.9)
+    // Footer instruction
+    this.add.rectangle(this.scale.width / 2, 520, 800, 42, 0x0c081e, 0.9)
       .setStrokeStyle(1, 0x3FF0FF, 0.6);
 
-    this.add.text(this.scale.width / 2, 520, 'ARROWS : MOVE GRID   •   SPACE / ENTER : SELECT   •   TYPE KEYBOARD DIRECTLY', {
+    this.add.text(this.scale.width / 2, 520, 'ARROWS: MOVE GRID  •  SPACE/ENTER: SELECT  •  TYPE KEYBOARD DIRECTLY', {
       fontFamily: KENNEY_FUTURE_NARROW_FONT_NAME,
       fontSize: '14px',
       color: '#FFD700',
       fontStyle: 'bold',
     }).setOrigin(0.5);
 
-    // Direct keyboard listener
+    // Keyboard listener
     this.input.keyboard.on('keydown', (event) => {
       if (this.#isConfirmed) return;
       const key = event.key.toUpperCase();
@@ -233,7 +233,7 @@ export class NameInputScene extends BaseScene {
         }
         return;
       }
-      if (/^[A-Z0-9_]$/.test(key)) {
+      if (/^[A-Z0-9_-]$/.test(key)) {
         this.#appendChar(key);
       }
     });
@@ -348,8 +348,9 @@ export class NameInputScene extends BaseScene {
     this.#isConfirmed = true;
     this._controls.lockInput = true;
 
-    dataManager.setPlayerName(this.#playerName);
-    runState.initNewRun(this.#playerName, dataManager.getPlayerCat());
+    const savedName = leaderboard.saveHandle(this.#playerName);
+    dataManager.setPlayerName(savedName);
+    runState.initNewRun(savedName, dataManager.getPlayerCat());
 
     this.cameras.main.fadeOut(400, 0, 0, 0);
     this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
@@ -357,4 +358,3 @@ export class NameInputScene extends BaseScene {
     });
   }
 }
-

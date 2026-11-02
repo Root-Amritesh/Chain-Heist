@@ -23,12 +23,18 @@ export class ResultsScene extends BaseScene {
   #badge = 'NONE';
   /** @type {string} */
   #runCode = '#0000-0000';
+  /** @type {string} */
+  #playerName = '';
   /** @type {Phaser.GameObjects.Text | undefined} */
   #scoreText;
+  /** @type {Phaser.GameObjects.Text | undefined} */
+  #nameText;
   /** @type {Array<{ container: Phaser.GameObjects.Container, baseAngle: number }>} */
   #orbitBadges = [];
   /** @type {Phaser.GameObjects.Image | undefined} */
   #catSprite;
+  /** @type {Promise<any> | null} */
+  #submitPromise = null;
 
   constructor() {
     super({
@@ -40,6 +46,7 @@ export class ResultsScene extends BaseScene {
     super.create();
     this.#isConfirmed = false;
     this.#orbitBadges = [];
+    this.#playerName = leaderboard.sanitizeName(runState.name || leaderboard.getDefaultHandle());
 
     this.cameras.main.setBackgroundColor('#060412');
     this.cameras.main.fadeIn(500);
@@ -59,7 +66,7 @@ export class ResultsScene extends BaseScene {
     const lifeBonus = breakdown.lifeBonus;
 
     // Submit to persistent unified leaderboard
-    this.#saveToLeaderboard(timeLeft);
+    this.#submitPromise = this.#saveToLeaderboard(timeLeft);
 
     // Decorative grid background
     const grid = this.add.graphics();
@@ -79,23 +86,39 @@ export class ResultsScene extends BaseScene {
       ? `ALL ${MAX_DISTRICTS} DISTRICT CONSENSUS NODES DEFENDED · OVERRIDE PREVENTED`
       : (breakdown.gameOverReason || 'OPERATION TERMINATED · DISTRICT INTEGRITY COMPROMISED');
 
-    const headerBox = this.add.rectangle(this.scale.width / 2, 54, 860, 64, 0x0a061c, 0.95)
+    this.add.rectangle(this.scale.width / 2, 50, 860, 60, 0x0a061c, 0.95)
       .setStrokeStyle(2, bannerBorderCol, 1);
 
-    this.add.text(this.scale.width / 2, 42, bannerHeaderText, {
+    this.add.text(this.scale.width / 2, 38, bannerHeaderText, {
       fontFamily: KENNEY_FUTURE_NARROW_FONT_NAME,
-      fontSize: '28px',
+      fontSize: '26px',
       color: bannerHeaderCol,
       fontStyle: 'bold',
       stroke: '#04020a',
       strokeThickness: 3,
     }).setOrigin(0.5);
 
-    this.add.text(this.scale.width / 2, 68, bannerSubtext, {
+    this.add.text(this.scale.width / 2, 62, bannerSubtext, {
       fontFamily: KENNEY_FUTURE_NARROW_FONT_NAME,
       fontSize: '12px',
       color: '#A8A4C4',
     }).setOrigin(0.5);
+
+    // Operative Name Pill (Editable on Game Over screen)
+    const namePill = this.add.container(this.scale.width / 2, 95);
+    const pillBg = this.add.rectangle(0, 0, 320, 26, 0x100a26, 0.95)
+      .setStrokeStyle(1.5, 0xFFD700, 0.9)
+      .setInteractive({ useHandCursor: true });
+
+    this.#nameText = this.add.text(0, 0, `OPERATIVE: ${this.#playerName} ✎ [EDIT]`, {
+      fontFamily: KENNEY_FUTURE_NARROW_FONT_NAME,
+      fontSize: '12px',
+      color: '#FFD700',
+      fontStyle: 'bold',
+    }).setOrigin(0.5);
+
+    pillBg.on('pointerdown', () => this.#editPlayerName(timeLeft));
+    namePill.add([pillBg, this.#nameText]);
 
     // LEFT: Pedestal & Cat with spinning badges
     this.#createPedestalAndCat();
@@ -103,7 +126,7 @@ export class ResultsScene extends BaseScene {
     // RIGHT: Results Card & Score Breakdown
     this.#createResultsCard(timeBonus, lifeBonus, timeLeft, livesLeft);
 
-    // Score Counting Up Animation (if victory and bonus added)
+    // Score Counting Up Animation
     if (this.#finalScore > this.#baseScore) {
       this.tweens.addCounter({
         from: this.#baseScore,
@@ -144,10 +167,25 @@ export class ResultsScene extends BaseScene {
     });
   }
 
+  #editPlayerName(timeLeft) {
+    if (typeof window === 'undefined') return;
+    const input = window.prompt('Enter your operative handle (3–12 chars, A-Z 0-9 _ -):', this.#playerName);
+    if (input !== null && input.trim()) {
+      const sanitized = leaderboard.saveHandle(input);
+      this.#playerName = sanitized;
+      runState.name = sanitized;
+      dataManager.setPlayerName(sanitized);
+      if (this.#nameText) {
+        this.#nameText.setText(`OPERATIVE: ${this.#playerName} ✎ [EDIT]`);
+      }
+      // Resubmit score under updated name
+      this.#submitPromise = this.#saveToLeaderboard(timeLeft);
+    }
+  }
+
   update(time) {
     super.update();
 
-    // Orbit spinning badges around pedestal if victory
     if (this.#isVictory && this.#orbitBadges.length > 0) {
       const pedX = 230;
       const pedY = 320;
@@ -162,7 +200,6 @@ export class ResultsScene extends BaseScene {
 
         b.container.setPosition(x, y);
 
-        // Dynamic depth sorting so front passes over cat, back passes behind
         if (Math.sin(currentAngle) > 0) {
           b.container.setDepth(20);
         } else {
@@ -171,7 +208,6 @@ export class ResultsScene extends BaseScene {
       });
     }
 
-    // Input handlers
     if (!this.#isConfirmed) {
       if (this._controls.wasSpaceKeyPressed() || this._controls.wasEnterKeyPressed()) {
         this.#goToLeaderboard();
@@ -179,15 +215,10 @@ export class ResultsScene extends BaseScene {
     }
   }
 
-  /**
-   * Builds the left pedestal with chosen Cat sprite and glowing orbiting badges
-   * @returns {void}
-   */
   #createPedestalAndCat() {
     const pedX = 230;
     const pedY = 340;
 
-    // Pedestal glow
     const pedGlow = this.add.ellipse(pedX, pedY + 12, 180, 52, this.#isVictory ? 0x00FF66 : 0xFF3366, 0.22);
     this.tweens.add({
       targets: pedGlow,
@@ -198,29 +229,26 @@ export class ResultsScene extends BaseScene {
       ease: 'Sine.easeInOut',
     });
 
-    // 3-tiered cyber platform
-    const baseEllipse = this.add.ellipse(pedX, pedY + 12, 168, 44, 0x0a0522, 0.95)
+    this.add.ellipse(pedX, pedY + 12, 168, 44, 0x0a0522, 0.95)
       .setStrokeStyle(2, 0x3FF0FF, 0.7);
 
-    const midEllipse = this.add.ellipse(pedX, pedY, 138, 36, 0x140c3c, 0.95)
+    this.add.ellipse(pedX, pedY, 138, 36, 0x140c3c, 0.95)
       .setStrokeStyle(2, this.#isVictory ? 0x00FF66 : 0xFF3366, 1);
 
-    const topEllipse = this.add.ellipse(pedX, pedY - 10, 106, 28, 0x1e1254, 0.95)
+    this.add.ellipse(pedX, pedY - 10, 106, 28, 0x1e1254, 0.95)
       .setStrokeStyle(1.5, 0x3FF0FF, 0.8);
 
-    // Pedestal text badge
-    const pedLabel = this.add.text(pedX, pedY + 14, this.#isVictory ? 'NODE SECURED' : 'SYSTEM HALT', {
+    this.add.text(pedX, pedY + 14, this.#isVictory ? 'NODE SECURED' : 'SYSTEM HALT', {
       fontFamily: KENNEY_FUTURE_NARROW_FONT_NAME,
       fontSize: '10px',
       color: this.#isVictory ? '#00FF66' : '#FF2A6D',
       fontStyle: 'bold',
     }).setOrigin(0.5);
 
-    // Chosen Cat on pedestal
     const catAssetKey = dataManager.getPlayerCat() || runState.hunter || 'cat-1';
     this.#catSprite = this.add.image(pedX, pedY - 10, catAssetKey)
       .setOrigin(0.5, 1.0)
-      .setScale(0.5) // ~69px tall
+      .setScale(0.5)
       .setDepth(15);
 
     if (this.#catSprite.texture) {
@@ -228,7 +256,6 @@ export class ResultsScene extends BaseScene {
     }
 
     if (this.#isVictory) {
-      // Gentle idle breathing
       this.tweens.add({
         targets: this.#catSprite,
         y: pedY - 13,
@@ -238,7 +265,6 @@ export class ResultsScene extends BaseScene {
         ease: 'Sine.easeInOut',
       });
 
-      // 4 Spinning Badges for all 4 districts
       const badgeData = [
         { label: 'BLOCK', color: 0x00E5FF, colorHex: '#00E5FF', symbol: '■' },
         { label: 'VAULT', color: 0xFFD700, colorHex: '#FFD700', symbol: '★' },
@@ -249,7 +275,6 @@ export class ResultsScene extends BaseScene {
       badgeData.forEach((b, idx) => {
         const badgeCont = this.add.container(0, 0);
 
-        // Glowing outer circle
         const bgCircle = this.add.circle(0, 0, 14, 0x070414, 0.95)
           .setStrokeStyle(2, b.color, 1);
 
@@ -277,58 +302,44 @@ export class ResultsScene extends BaseScene {
         });
       });
     } else {
-      // Defeated tint
       this.#catSprite.setTint(0xFF3366).setAlpha(0.65);
     }
   }
 
-  /**
-   * Builds the results breakdown card on the right
-   * @param {number | string} timeBonus
-   * @param {number | string} lifeBonus
-   * @param {number} timeLeft
-   * @param {number} livesLeft
-   * @returns {void}
-   */
   #createResultsCard(timeBonus, lifeBonus, timeLeft, livesLeft) {
     const cardX = 660;
-    const cardY = 300;
+    const cardY = 308;
     const cardW = 540;
-    const cardH = 370;
+    const cardH = 355;
 
-    // Card frame
-    const cardBg = this.add.rectangle(cardX, cardY, cardW, cardH, 0x09061c, 0.96)
+    this.add.rectangle(cardX, cardY, cardW, cardH, 0x09061c, 0.96)
       .setStrokeStyle(2, 0x3FF0FF, 0.9);
 
     const cornerDecor = this.add.graphics();
     cornerDecor.lineStyle(1.5, this.#isVictory ? 0x00FF66 : 0xFF2A6D, 0.6);
     cornerDecor.strokeRect(cardX - cardW / 2 + 4, cardY - cardH / 2 + 4, cardW - 8, cardH - 8);
 
-    // Final Score title
-    this.add.text(cardX, cardY - 145, 'FINAL PROTOCOL SCORE', {
+    this.add.text(cardX, cardY - 140, 'FINAL PROTOCOL SCORE', {
       fontFamily: KENNEY_FUTURE_NARROW_FONT_NAME,
       fontSize: '14px',
       color: '#FFD700',
       fontStyle: 'bold',
     }).setOrigin(0.5);
 
-    // Large Gold Score Text
     const initialScoreStr = String(this.#displayedScore).padStart(6, '0');
-    this.#scoreText = this.add.text(cardX, cardY - 110, initialScoreStr, {
+    this.#scoreText = this.add.text(cardX, cardY - 105, initialScoreStr, {
       fontFamily: KENNEY_FUTURE_NARROW_FONT_NAME,
       fontSize: '44px',
       color: '#FFD700',
       fontStyle: 'bold',
-      stroke: '#06020c',
+      stroke: '#050210',
       strokeThickness: 4,
     }).setOrigin(0.5);
 
-    // Divider
     const div1 = this.add.graphics();
     div1.lineStyle(1, 0x3FF0FF, 0.35);
-    div1.lineBetween(cardX - 230, cardY - 75, cardX + 230, cardY - 75);
+    div1.lineBetween(cardX - 230, cardY - 72, cardX + 230, cardY - 72);
 
-    // Breakdown Stats Rows
     const rows = [
       { label: 'BASE MISSION SCORE', value: `${this.#baseScore}` },
       { label: `TIME BONUS (+10/s · ${timeLeft}s LEFT)`, value: this.#isVictory ? `+${timeBonus}` : 'n/a' },
@@ -338,7 +349,7 @@ export class ResultsScene extends BaseScene {
     ];
 
     rows.forEach((r, idx) => {
-      const ry = cardY - 52 + idx * 23;
+      const ry = cardY - 48 + idx * 23;
       this.add.text(cardX - 220, ry, r.label, {
         fontFamily: KENNEY_FUTURE_NARROW_FONT_NAME,
         fontSize: '12px',
@@ -353,12 +364,10 @@ export class ResultsScene extends BaseScene {
       }).setOrigin(1, 0.5);
     });
 
-    // Divider 2
     const div2 = this.add.graphics();
     div2.lineStyle(1, 0x3FF0FF, 0.35);
     div2.lineBetween(cardX - 230, cardY + 70, cardX + 230, cardY + 70);
 
-    // Badge Display Pill
     const badgeColors = {
       GOLD: { bg: 0x332605, border: 0xFFD700, text: '#FFD700', icon: '★ GOLD BADGE' },
       SILVER: { bg: 0x1f242d, border: 0xD9E2EC, text: '#D9E2EC', icon: '★ SILVER BADGE' },
@@ -367,7 +376,7 @@ export class ResultsScene extends BaseScene {
     };
     const bInfo = badgeColors[this.#badge] || badgeColors.NONE;
 
-    const badgePill = this.add.rectangle(cardX - 115, cardY + 115, 205, 40, bInfo.bg, 0.95)
+    this.add.rectangle(cardX - 115, cardY + 115, 205, 40, bInfo.bg, 0.95)
       .setStrokeStyle(2, bInfo.border, 1);
 
     this.add.text(cardX - 115, cardY + 115, bInfo.icon, {
@@ -377,8 +386,7 @@ export class ResultsScene extends BaseScene {
       fontStyle: 'bold',
     }).setOrigin(0.5);
 
-    // Run Verification Short Code Pill
-    const codeBox = this.add.rectangle(cardX + 115, cardY + 115, 205, 40, 0x0c0822, 0.95)
+    this.add.rectangle(cardX + 115, cardY + 115, 205, 40, 0x0c0822, 0.95)
       .setStrokeStyle(1.5, 0x00E5FF, 0.8);
 
     this.add.text(cardX + 115, cardY + 106, 'RUN VERIFICATION', {
@@ -395,14 +403,9 @@ export class ResultsScene extends BaseScene {
     }).setOrigin(0.5);
   }
 
-  /**
-   * Persists run results into leaderboard service
-   * @param {number} timeLeft
-   * @returns {Promise<void>}
-   */
   async #saveToLeaderboard(timeLeft) {
     const entry = {
-      name: runState.name || 'ANON_HUNTER',
+      name: this.#playerName,
       hunter: runState.hunter || 'cat-1',
       score: this.#finalScore,
       districts: runState.cleared.length,
@@ -419,18 +422,24 @@ export class ResultsScene extends BaseScene {
     }
 
     try {
-      await leaderboard.submitScore(entry);
+      return await leaderboard.submitScore(entry);
     } catch (err) {
       console.warn('[ResultsScene] Failed to submit score to leaderboard:', err);
+      return null;
     }
   }
 
-  /**
-   * Transitions to Leaderboard scene
-   * @returns {void}
-   */
-  #goToLeaderboard() {
+  async #goToLeaderboard() {
+    if (this.#isConfirmed) return;
     this.#isConfirmed = true;
+    this._controls.lockInput = true;
+
+    // Await submit result with 3-second timeout before ledger opens
+    if (this.#submitPromise) {
+      const timeoutPromise = new Promise(resolve => setTimeout(resolve, 3000));
+      await Promise.race([this.#submitPromise, timeoutPromise]);
+    }
+
     this.cameras.main.fadeOut(400, 0, 0, 0);
     this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
       this.scene.start(SCENE_KEYS.LEADERBOARD_SCENE);

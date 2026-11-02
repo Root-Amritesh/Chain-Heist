@@ -9,19 +9,19 @@ import { leaderboard } from '../systems/leaderboard.js';
 import { MAX_DISTRICTS } from '../config.js';
 
 const HUNTER_COLORS = {
-  'cat-1': '#00FFFF', // Cyan
-  'cat-2': '#FF00FF', // Magenta
-  'cat-3': '#B366FF', // Violet
-  'cat-4': '#FFD700', // Gold
+  'cat-1': '#00FFFF',
+  'cat-2': '#FF00FF',
+  'cat-3': '#B366FF',
+  'cat-4': '#FFD700',
 };
 
 /** @type {import('../systems/leaderboard.js').LeaderboardEntry[]} */
 const DEFAULT_SEEDS = [
-  { name: 'SATOSHI', hunter: 'cat-4', score: 8500, badge: 'GOLD', runCode: '#0000-B1TC', verificationCode: '#0000-B1TC', districts: 4, tokens: 10, timestamp: Date.now() - 3600000 },
-  { name: 'HAL_FINNEY', hunter: 'cat-1', score: 7100, badge: 'GOLD', runCode: '#4A21-F900', verificationCode: '#4A21-F900', districts: 4, tokens: 9, timestamp: Date.now() - 7200000 },
-  { name: 'NICK_SZABO', hunter: 'cat-3', score: 5800, badge: 'SILVER', runCode: '#7BC3-A1E2', verificationCode: '#7BC3-A1E2', districts: 4, tokens: 8, timestamp: Date.now() - 14400000 },
-  { name: 'VITALIK', hunter: 'cat-2', score: 4950, badge: 'SILVER', runCode: '#E701-44B8', verificationCode: '#E701-44B8', districts: 3, tokens: 7, timestamp: Date.now() - 28800000 },
-  { name: 'CYPHERPUNK', hunter: 'cat-1', score: 3850, badge: 'BRONZE', runCode: '#C982-10F3', verificationCode: '#C982-10F3', districts: 3, tokens: 5, timestamp: Date.now() - 43200000 },
+  { name: 'SATOSHI', hunter: 'cat-4', score: 8500, badge: 'GOLD', verificationCode: '#0000-B1TC', districts: 4, tokens: 10, timestamp: Date.now() - 3600000 },
+  { name: 'HAL_FINNEY', hunter: 'cat-1', score: 7100, badge: 'GOLD', verificationCode: '#4A21-F900', districts: 4, tokens: 9, timestamp: Date.now() - 7200000 },
+  { name: 'NICK_SZABO', hunter: 'cat-3', score: 5800, badge: 'SILVER', verificationCode: '#7BC3-A1E2', districts: 4, tokens: 8, timestamp: Date.now() - 14400000 },
+  { name: 'VITALIK', hunter: 'cat-2', score: 4950, badge: 'SILVER', verificationCode: '#E701-44B8', districts: 3, tokens: 7, timestamp: Date.now() - 28800000 },
+  { name: 'CYPHERPUNK', hunter: 'cat-1', score: 3850, badge: 'BRONZE', verificationCode: '#C982-10F3', districts: 3, tokens: 5, timestamp: Date.now() - 43200000 },
 ];
 
 export class LeaderboardScene extends BaseScene {
@@ -35,10 +35,16 @@ export class LeaderboardScene extends BaseScene {
   #tabAllText;
   /** @type {Phaser.GameObjects.Text | undefined} */
   #tabTodayText;
+  /** @type {Phaser.GameObjects.Text | undefined} */
+  #liveIndicatorText;
   /** @type {Function | null} */
-  #unsubscribe = null;
+  #stopPolling = null;
   /** @type {string | null} */
   #lastRunCode = null;
+  /** @type {number} */
+  #lastFetchTimestamp = Date.now();
+  /** @type {boolean} */
+  #isLoading = false;
 
   constructor() {
     super({
@@ -49,6 +55,8 @@ export class LeaderboardScene extends BaseScene {
   create() {
     super.create();
     this.#isConfirmed = false;
+    this.#isLoading = false;
+    this.#lastFetchTimestamp = Date.now();
 
     this.cameras.main.setBackgroundColor('#060412');
     this.cameras.main.fadeIn(500);
@@ -67,75 +75,73 @@ export class LeaderboardScene extends BaseScene {
     }
 
     // Top Header
-    const headerBox = this.add.rectangle(width / 2, 48, 860, 56, 0x09051c, 0.96)
+    this.add.rectangle(width / 2, 46, 860, 52, 0x09051c, 0.96)
       .setStrokeStyle(2, 0x3FF0FF, 1);
 
-    this.add.text(width / 2, 38, 'THE LEDGER', {
+    this.add.text(width / 2, 36, 'THE LEDGER', {
       fontFamily: KENNEY_FUTURE_NARROW_FONT_NAME,
-      fontSize: '28px',
+      fontSize: '26px',
       color: '#3FF0FF',
       fontStyle: 'bold',
       stroke: '#04020a',
       strokeThickness: 3,
     }).setOrigin(0.5);
 
-    this.add.text(width / 2, 60, 'IMMUTABLE CONSENSUS ARCHIVE // TOP OPERATIVE RUNS', {
+    this.add.text(width / 2, 58, 'IMMUTABLE CONSENSUS ARCHIVE // TOP OPERATIVE RUNS', {
       fontFamily: KENNEY_FUTURE_NARROW_FONT_NAME,
       fontSize: '11px',
       color: '#A8A4C4',
     }).setOrigin(0.5);
 
-    // Online / Offline Consensus Indicator Badge (MongoDB / Local)
-    const isMongo = leaderboard.isMongoConnected;
-    const isOnline = leaderboard.isRemoteEnabled;
-    const statusCol = isMongo ? 0x00FF66 : (isOnline ? 0x00E5FF : 0x8E8AAB);
-    const statusText = isMongo ? '● MONGO CONSENSUS (ONLINE)' : (isOnline ? '● REMOTE CONSENSUS (ONLINE)' : '○ LOCAL CONSENSUS (OFFLINE)');
-
-    const statusPill = this.add.container(width / 2 + 280, 48);
-    const pillBg = this.add.rectangle(0, 0, 195, 24, 0x070415, 0.9).setStrokeStyle(1, statusCol, 0.8);
-    const pillTxt = this.add.text(0, 0, statusText, {
+    // Live Indicator with "updated Ns ago"
+    this.#liveIndicatorText = this.add.text(width / 2 + 270, 46, '● LIVE • updated 0s ago', {
       fontFamily: KENNEY_FUTURE_NARROW_FONT_NAME,
-      fontSize: '9px',
-      color: isMongo ? '#00FF66' : (isOnline ? '#00E5FF' : '#8E8AAB'),
+      fontSize: '10px',
+      color: '#00FF66',
       fontStyle: 'bold',
     }).setOrigin(0.5);
-    statusPill.add([pillBg, pillTxt]);
+
+    this.time.addEvent({
+      delay: 1000,
+      loop: true,
+      callback: () => this.#updateLiveIndicator(),
+    });
 
     // Retrieve last run verification code
     this.#lastRunCode = (typeof localStorage !== 'undefined')
       ? localStorage.getItem('CHAIN_HEIST_LAST_RUN_CODE')
       : null;
 
-    // Tabs: [ ALL-TIME ] and [ TODAY ]
-    this.#createTabs(width / 2, 92);
+    // Tabs: ALL-TIME and TODAY
+    this.#createTabs(width / 2, 88);
 
     // Table Container for rows
     this.#tableContainer = this.add.container(0, 0);
 
-    // Render table
+    // Initial render
     this.#renderTable();
 
-    // Subscribe to self-updating score notifications
-    this.#unsubscribe = leaderboard.subscribe(() => {
-      this.#renderTable();
+    // Live 10-second polling (with 30s idle pause)
+    this.#stopPolling = leaderboard.startLedgerPolling(async () => {
+      await this.#renderTable();
     });
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-      if (this.#unsubscribe) {
-        this.#unsubscribe();
-        this.#unsubscribe = null;
+      if (this.#stopPolling) {
+        this.#stopPolling();
+        this.#stopPolling = null;
       }
     });
 
-    // Footer instruction: ENTER = new player (resets the run and goes back to the title)
-    const btnY = 525;
-    const newPlayerBtn = this.add.rectangle(width / 2, btnY, 480, 40, 0x140e32, 0.95)
+    // Footer instruction
+    const btnY = 530;
+    const newPlayerBtn = this.add.rectangle(width / 2, btnY, 480, 38, 0x140e32, 0.95)
       .setStrokeStyle(2, 0x3FF0FF, 1)
       .setInteractive({ useHandCursor: true });
 
     const btnText = this.add.text(width / 2, btnY, '[ENTER] NEW PLAYER · RESET RUN & RETURN TO TITLE', {
       fontFamily: KENNEY_FUTURE_NARROW_FONT_NAME,
-      fontSize: '14px',
+      fontSize: '13px',
       color: '#3FF0FF',
       fontStyle: 'bold',
     }).setOrigin(0.5);
@@ -153,16 +159,24 @@ export class LeaderboardScene extends BaseScene {
     });
   }
 
-  /**
-   * Builds the Tab toggle buttons
-   * @param {number} cx
-   * @param {number} cy
-   */
+  #updateLiveIndicator() {
+    if (!this.#liveIndicatorText?.scene) return;
+    const isOnline = leaderboard.isRemoteEnabled;
+    const elapsedSec = Math.floor((Date.now() - this.#lastFetchTimestamp) / 1000);
+
+    if (this.#isLoading) {
+      this.#liveIndicatorText.setText('⟳ SYNCING CONSENSUS...').setColor('#FFD700');
+    } else if (isOnline) {
+      this.#liveIndicatorText.setText(`● LIVE • updated ${elapsedSec}s ago`).setColor('#00FF66');
+    } else {
+      this.#liveIndicatorText.setText('○ LOCAL/OFFLINE CONSENSUS').setColor('#8E8AAB');
+    }
+  }
+
   #createTabs(cx, cy) {
     const tabW = 140;
     const tabH = 26;
 
-    // Tab 1: All-Time
     const btnAll = this.add.rectangle(cx - 80, cy, tabW, tabH, 0x140e32, 0.9)
       .setStrokeStyle(1.5, 0x3FF0FF, 0.8)
       .setInteractive({ useHandCursor: true });
@@ -182,7 +196,6 @@ export class LeaderboardScene extends BaseScene {
       }
     });
 
-    // Tab 2: Today
     const btnToday = this.add.rectangle(cx + 80, cy, tabW, tabH, 0x0c0722, 0.9)
       .setStrokeStyle(1.5, 0x3FF0FF, 0.4)
       .setInteractive({ useHandCursor: true });
@@ -214,23 +227,28 @@ export class LeaderboardScene extends BaseScene {
     }
   }
 
-  /**
-   * Renders the leaderboard table asynchronously
-   */
   async #renderTable() {
     if (!this.#tableContainer) return;
-    this.#tableContainer.removeAll(true);
+    this.#isLoading = true;
+    this.#updateLiveIndicator();
 
     const width = this.scale.width;
     const tableX = width / 2;
-    const tableStartY = 132;
+    const tableStartY = 124;
     const tableW = 860;
     const rowH = 32;
 
     // Fetch entries
-    let entries = await leaderboard.getTop(10, this.#currentTab);
+    let entries = [];
+    try {
+      entries = await leaderboard.getTop(50, this.#currentTab);
+      this.#lastFetchTimestamp = Date.now();
+    } catch {
+      entries = [];
+    }
+    this.#isLoading = false;
+    this.#updateLiveIndicator();
 
-    // Merge default seeds if too few entries
     if (entries.length < 5) {
       DEFAULT_SEEDS.forEach((seed) => {
         if (!entries.some((e) => e.name === seed.name)) {
@@ -239,9 +257,10 @@ export class LeaderboardScene extends BaseScene {
       });
       entries.sort((a, b) => b.score - a.score);
     }
-    const top10 = entries.slice(0, 10);
 
-    // Table Header Row
+    this.#tableContainer.removeAll(true);
+
+    // Required Columns: RANK / NAME / SCORE / DISTRICTS / TOKENS / DATE
     const headY = tableStartY;
     const headBox = this.add.rectangle(tableX, headY, tableW, 26, 0x110b2e, 0.9)
       .setStrokeStyle(1.5, 0x3FF0FF, 0.6);
@@ -249,11 +268,11 @@ export class LeaderboardScene extends BaseScene {
 
     const cols = [
       { text: 'RANK', x: tableX - 390, align: 0 },
-      { text: 'OPERATIVE', x: tableX - 290, align: 0 },
-      { text: 'NODES', x: tableX - 110, align: 0 },
-      { text: 'SCORE', x: tableX + 70, align: 1 },
-      { text: 'BADGE', x: tableX + 210, align: 0.5 },
-      { text: 'RUN CODE', x: tableX + 380, align: 1 },
+      { text: 'NAME', x: tableX - 280, align: 0 },
+      { text: 'SCORE', x: tableX - 60, align: 1 },
+      { text: 'DISTRICTS', x: tableX + 50, align: 0.5 },
+      { text: 'TOKENS', x: tableX + 190, align: 0.5 },
+      { text: 'DATE', x: tableX + 380, align: 1 },
     ];
 
     cols.forEach((c) => {
@@ -266,132 +285,130 @@ export class LeaderboardScene extends BaseScene {
       this.#tableContainer.add(hText);
     });
 
-    // Table Data Rows
-    top10.forEach((entry, idx) => {
-      const ry = tableStartY + 29 + idx * rowH;
-      const isNewRun = Boolean(this.#lastRunCode && (entry.verificationCode === this.#lastRunCode || entry.runCode === this.#lastRunCode));
+    const displayLimit = 10;
+    const visibleEntries = entries.slice(0, displayLimit);
+    let playerRank = -1;
+    let playerEntry = null;
 
-      // Row background
-      const rowBgCol = isNewRun ? 0x22134a : (idx % 2 === 0 ? 0x0c0722 : 0x080418);
-      const rowBorderCol = isNewRun ? 0x00FFFF : 0x1b1435;
-      const rowBorderWidth = isNewRun ? 2 : 1;
-
-      const rowBox = this.add.rectangle(tableX, ry, tableW, rowH - 4, rowBgCol, 0.95)
-        .setStrokeStyle(rowBorderWidth, rowBorderCol, isNewRun ? 1.0 : 0.6);
-      this.#tableContainer.add(rowBox);
-
-      if (isNewRun) {
-        this.tweens.add({
-          targets: rowBox,
-          alpha: { from: 0.82, to: 1.0 },
-          duration: 600,
-          yoyo: true,
-          repeat: -1,
-          ease: 'Sine.easeInOut',
-        });
+    if (this.#lastRunCode) {
+      const pIdx = entries.findIndex(e => e.verificationCode === this.#lastRunCode || e.runCode === this.#lastRunCode);
+      if (pIdx !== -1) {
+        playerRank = pIdx + 1;
+        playerEntry = entries[pIdx];
       }
+    }
 
-      // 1. Rank (#1 gets crown 👑)
-      let rankText = `#${idx + 1}`;
-      let rankColor = '#A8A4C4';
-      if (idx === 0) {
-        rankText = `👑 #1`;
-        rankColor = '#FFD700';
-      } else if (idx === 1) {
-        rankText = `  #2`;
-        rankColor = '#D9E2EC';
-      } else if (idx === 2) {
-        rankText = `  #3`;
-        rankColor = '#CD7F32';
-      }
+    // Render top entries
+    visibleEntries.forEach((entry, idx) => {
+      const ry = tableStartY + 28 + idx * rowH;
+      const isYou = Boolean(this.#lastRunCode && (entry.verificationCode === this.#lastRunCode || entry.runCode === this.#lastRunCode));
 
-      const rTextObj = this.add.text(tableX - 390, ry, rankText, {
-        fontFamily: KENNEY_FUTURE_NARROW_FONT_NAME,
-        fontSize: idx === 0 ? '15px' : '13px',
-        color: rankColor,
-        fontStyle: 'bold',
-      }).setOrigin(0, 0.5);
-      this.#tableContainer.add(rTextObj);
-
-      // 2. Operative Name
-      const hunterColor = HUNTER_COLORS[entry.hunter] || '#00FFFF';
-      const nameStr = (entry.name || 'ANON').toUpperCase();
-      const nameObj = this.add.text(tableX - 290, ry, nameStr, {
-        fontFamily: KENNEY_FUTURE_NARROW_FONT_NAME,
-        fontSize: '14px',
-        color: hunterColor,
-        fontStyle: 'bold',
-        stroke: '#050210',
-        strokeThickness: 2,
-      }).setOrigin(0, 0.5);
-      this.#tableContainer.add(nameObj);
-
-      // 3. Districts / Nodes cleared
-      const districtsVal = entry.districts !== undefined ? entry.districts : (entry.cleared || 0);
-      const nodesStr = `${districtsVal}/${MAX_DISTRICTS} NODES`;
-      const nodesObj = this.add.text(tableX - 110, ry, nodesStr, {
-        fontFamily: KENNEY_FUTURE_NARROW_FONT_NAME,
-        fontSize: '11px',
-        color: districtsVal >= MAX_DISTRICTS ? '#00FF66' : '#8E8AAB',
-      }).setOrigin(0, 0.5);
-      this.#tableContainer.add(nodesObj);
-
-      // 4. Score in gold
-      const scoreStr = String(entry.score).padStart(6, '0');
-      const scoreObj = this.add.text(tableX + 70, ry, scoreStr, {
-        fontFamily: KENNEY_FUTURE_NARROW_FONT_NAME,
-        fontSize: '15px',
-        color: '#FFD700',
-        fontStyle: 'bold',
-      }).setOrigin(1, 0.5);
-      this.#tableContainer.add(scoreObj);
-
-      // 5. Badge
-      const badgeColors = {
-        GOLD: '#FFD700',
-        SILVER: '#D9E2EC',
-        BRONZE: '#CD7F32',
-      };
-      const badgeText = entry.badge && entry.badge !== 'NONE' ? entry.badge : '—';
-      const badgeColor = badgeColors[entry.badge] || '#555566';
-
-      const badgeObj = this.add.text(tableX + 210, ry, badgeText, {
-        fontFamily: KENNEY_FUTURE_NARROW_FONT_NAME,
-        fontSize: '12px',
-        color: badgeColor,
-        fontStyle: 'bold',
-      }).setOrigin(0.5, 0.5);
-      this.#tableContainer.add(badgeObj);
-
-      // 6. Run Code
-      const codeStr = entry.verificationCode || entry.runCode || '#0000-0000';
-      const codeObj = this.add.text(tableX + 380, ry, codeStr, {
-        fontFamily: KENNEY_FUTURE_NARROW_FONT_NAME,
-        fontSize: '12px',
-        color: '#00E5FF',
-        fontStyle: 'bold',
-      }).setOrigin(1, 0.5);
-      this.#tableContainer.add(codeObj);
-
-      // New run tag
-      if (isNewRun) {
-        const newBadge = this.add.text(tableX - 215, ry, '▶ YOU', {
-          fontFamily: KENNEY_FUTURE_NARROW_FONT_NAME,
-          fontSize: '9px',
-          color: '#00FF66',
-          fontStyle: 'bold',
-        }).setOrigin(0, 0.5);
-        this.#tableContainer.add(newBadge);
-
-        this.tweens.add({
-          targets: newBadge,
-          alpha: { from: 0.3, to: 1 },
-          duration: 400,
-          yoyo: true,
-          repeat: -1,
-        });
-      }
+      this.#renderRow(tableX, ry, tableW, rowH, idx + 1, entry, isYou);
     });
+
+    // If player is outside top 10 (or top 50), pin "YOUR RANK" row at bottom
+    if (playerEntry && playerRank > displayLimit) {
+      const pinY = tableStartY + 28 + displayLimit * rowH + 6;
+      this.#renderRow(tableX, pinY, tableW, rowH, playerRank, playerEntry, true, true);
+    }
+  }
+
+  #renderRow(tableX, ry, tableW, rowH, rankNumber, entry, isYou = false, isPinned = false) {
+    const rowBgCol = isYou ? 0x22134a : (rankNumber % 2 === 0 ? 0x0c0722 : 0x080418);
+    const rowBorderCol = isYou ? 0x00FF66 : (isPinned ? 0xFFD700 : 0x1b1435);
+    const rowBorderWidth = isYou ? 2 : 1;
+
+    const rowBox = this.add.rectangle(tableX, ry, tableW, rowH - 4, rowBgCol, 0.95)
+      .setStrokeStyle(rowBorderWidth, rowBorderCol, isYou ? 1.0 : 0.6);
+    this.#tableContainer.add(rowBox);
+
+    if (isYou) {
+      this.tweens.add({
+        targets: rowBox,
+        alpha: { from: 0.82, to: 1.0 },
+        duration: 600,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut',
+      });
+    }
+
+    // 1. RANK
+    let rankText = `#${rankNumber}`;
+    let rankColor = '#A8A4C4';
+    if (rankNumber === 1) {
+      rankText = '👑 #1';
+      rankColor = '#FFD700';
+    } else if (rankNumber === 2) {
+      rankText = '  #2';
+      rankColor = '#D9E2EC';
+    } else if (rankNumber === 3) {
+      rankText = '  #3';
+      rankColor = '#CD7F32';
+    }
+
+    const rTextObj = this.add.text(tableX - 390, ry, rankText, {
+      fontFamily: KENNEY_FUTURE_NARROW_FONT_NAME,
+      fontSize: rankNumber === 1 ? '14px' : '12px',
+      color: rankColor,
+      fontStyle: 'bold',
+    }).setOrigin(0, 0.5);
+    this.#tableContainer.add(rTextObj);
+
+    // 2. NAME
+    const hunterColor = HUNTER_COLORS[entry.hunter] || (isYou ? '#00FF66' : '#00FFFF');
+    const nameStr = (entry.name || 'ANON').toUpperCase();
+    const nameObj = this.add.text(tableX - 280, ry, isYou ? `${nameStr} [YOU]` : nameStr, {
+      fontFamily: KENNEY_FUTURE_NARROW_FONT_NAME,
+      fontSize: '13px',
+      color: isYou ? '#00FF66' : hunterColor,
+      fontStyle: 'bold',
+    }).setOrigin(0, 0.5);
+    this.#tableContainer.add(nameObj);
+
+    // 3. SCORE
+    const scoreStr = String(entry.score).padStart(6, '0');
+    const scoreObj = this.add.text(tableX - 60, ry, scoreStr, {
+      fontFamily: KENNEY_FUTURE_NARROW_FONT_NAME,
+      fontSize: '14px',
+      color: '#FFD700',
+      fontStyle: 'bold',
+    }).setOrigin(1, 0.5);
+    this.#tableContainer.add(scoreObj);
+
+    // 4. DISTRICTS
+    const distCount = entry.districts !== undefined ? entry.districts : (entry.cleared?.length || 0);
+    const distStr = `${distCount}/${MAX_DISTRICTS}`;
+    const distObj = this.add.text(tableX + 50, ry, distStr, {
+      fontFamily: KENNEY_FUTURE_NARROW_FONT_NAME,
+      fontSize: '12px',
+      color: distCount >= MAX_DISTRICTS ? '#00FF66' : '#8E8AAB',
+    }).setOrigin(0.5, 0.5);
+    this.#tableContainer.add(distObj);
+
+    // 5. TOKENS
+    const tokenCount = entry.tokens || 0;
+    const tokenObj = this.add.text(tableX + 190, ry, `${tokenCount}/10`, {
+      fontFamily: KENNEY_FUTURE_NARROW_FONT_NAME,
+      fontSize: '12px',
+      color: tokenCount > 0 ? '#3FF0FF' : '#555566',
+    }).setOrigin(0.5, 0.5);
+    this.#tableContainer.add(tokenObj);
+
+    // 6. DATE
+    const d = new Date(entry.timestamp || Date.now());
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    const dateStr = `${m}/${day} ${hh}:${mm}`;
+
+    const dateObj = this.add.text(tableX + 380, ry, dateStr, {
+      fontFamily: KENNEY_FUTURE_NARROW_FONT_NAME,
+      fontSize: '11px',
+      color: '#8E8AAB',
+    }).setOrigin(1, 0.5);
+    this.#tableContainer.add(dateObj);
   }
 
   update() {
@@ -405,18 +422,12 @@ export class LeaderboardScene extends BaseScene {
     }
   }
 
-  /**
-   * Resets run state and transitions cleanly back to Title Scene for a new player
-   * @returns {void}
-   */
   #resetAndReturnToTitle() {
     this.#isConfirmed = true;
 
-    // Reset global run state to defaults
     runState.resetToDefaults();
     runState.save();
 
-    // Reset game started flag so new game flow triggers fresh name/hunter selection
     dataManager.store.set(DATA_MANAGER_STORE_KEYS.GAME_STARTED, false);
 
     this.cameras.main.fadeOut(500, 0, 0, 0);

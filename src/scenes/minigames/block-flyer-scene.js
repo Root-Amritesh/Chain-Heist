@@ -5,6 +5,7 @@ import { KENNEY_FUTURE_NARROW_FONT_NAME } from '../../assets/font-keys.js';
 import { dataManager } from '../../utils/data-manager.js';
 import { runState, isReduceMotionActive } from '../../state/run-state.js';
 import { TimeManager, SESSION_END_REASONS } from '../../systems/time-manager.js';
+import { MiniGameClock } from '../../minigames/clock.js';
 
 const CANVAS_WIDTH = 1024;
 const CANVAS_HEIGHT = 576;
@@ -115,6 +116,10 @@ export class BlockFlyerScene extends BaseScene {
 
   /** @type {string | null} */
   #sessionId = null;
+  /** @type {MiniGameClock | null} */
+  #clock = null;
+  /** @type {boolean} */
+  #hasReportedResult = false;
 
   constructor() {
     super({ key: SCENE_KEYS.BLOCK_FLYER_SCENE });
@@ -145,7 +150,12 @@ export class BlockFlyerScene extends BaseScene {
     this.#isPlaying = false;
     this.#isGameOver = false;
     this.#hasWon = false;
+    this.#hasReportedResult = false;
     this.#sessionId = null;
+    if (this.#clock) {
+      this.#clock.destroy();
+      this.#clock = null;
+    }
   }
 
   create() {
@@ -159,6 +169,19 @@ export class BlockFlyerScene extends BaseScene {
       return;
     }
     this.#sessionId = session.sessionId;
+
+    // Initialize monotonic MiniGameClock
+    this.#clock = new MiniGameClock(session.sessionLimitMs || 90000);
+    this.#clock.onExpired(() => {
+      this.#triggerDefeat('TIMEOUT: HIGH-FREQUENCY AIRSPACE EXPIRED');
+    });
+
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      if (this.#clock) {
+        this.#clock.destroy();
+        this.#clock = null;
+      }
+    });
 
     // 1. Build Background Layers
     this.#buildParallaxBackground();
@@ -201,14 +224,18 @@ export class BlockFlyerScene extends BaseScene {
       return;
     }
 
-    if (!this.#isPlaying || this.#isGameOver || this.#hasWon) return;
+    if (!this.#isPlaying || this.#isGameOver || this.#hasWon) {
+      this.#updateTimerDisplay();
+      return;
+    }
 
+    this.#clock?.update();
     const timeStatus = TimeManager.tick(delta);
     if (timeStatus.worldExpired) {
       this.#triggerDefeat('WORLD TIMELINE EXPIRED');
       return;
     }
-    if (timeStatus.sessionExpired) {
+    if (this.#clock?.hasExpired || timeStatus.sessionExpired) {
       this.#triggerDefeat('TIMEOUT: HIGH-FREQUENCY AIRSPACE EXPIRED');
       return;
     }
@@ -389,11 +416,13 @@ export class BlockFlyerScene extends BaseScene {
 
   #updateTimerDisplay() {
     if (!this.#timerText?.scene || !this.#worldTimerText?.scene) return;
+    const formatted = this.#clock ? this.#clock.formatted : '01:30';
+    const remainingSec = this.#clock ? this.#clock.remainingSec : 90;
+    this.#timerText.setText(`TIME: ${formatted}`);
     const readout = TimeManager.getLiveReadout();
-    this.#timerText.setText(`TIME: ${readout.formattedSessionTime}`);
     this.#worldTimerText.setText(`WORLD: ${readout.formattedLiveWorldTime}`);
 
-    if (readout.sessionRemainingSec <= 10) {
+    if (remainingSec <= 10) {
       this.#timerText.setColor('#FF3366');
     } else {
       this.#timerText.setColor('#00E5FF');
@@ -627,6 +656,7 @@ export class BlockFlyerScene extends BaseScene {
             bannerText.destroy();
             countText.destroy();
             this.#isPlaying = true;
+            this.#clock?.start();
           },
         });
         return;
@@ -850,9 +880,12 @@ export class BlockFlyerScene extends BaseScene {
   // WIN & DEFEAT OUTCOMES
   // ==========================================
   #triggerVictory() {
-    if (this.#hasWon || this.#isGameOver) return;
+    if (this.#hasWon || this.#isGameOver || this.#hasReportedResult) return;
+    this.#hasReportedResult = true;
     this.#hasWon = true;
     this.#isPlaying = false;
+    this.#clock?.stop();
+    if (this._controls) this._controls.lockInput = true;
 
     if (this.#sessionId) {
       TimeManager.endSession(this.#sessionId, SESSION_END_REASONS.WIN);
@@ -899,9 +932,12 @@ export class BlockFlyerScene extends BaseScene {
   }
 
   #triggerDefeat(reason = 'COLLISION DETECTED') {
-    if (this.#isGameOver || this.#hasWon) return;
+    if (this.#isGameOver || this.#hasWon || this.#hasReportedResult) return;
+    this.#hasReportedResult = true;
     this.#isGameOver = true;
     this.#isPlaying = false;
+    this.#clock?.stop();
+    if (this._controls) this._controls.lockInput = true;
 
     if (this.#sessionId) {
       TimeManager.endSession(this.#sessionId, SESSION_END_REASONS.DEFEAT);

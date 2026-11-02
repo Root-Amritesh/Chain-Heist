@@ -1,5 +1,5 @@
 import { defineConfig } from 'vite';
-import { mongoLeaderboard } from './server/mongo-leaderboard.js';
+import { mongoLeaderboard, checkRateLimit, generateETag } from './server/mongo-leaderboard.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -30,14 +30,17 @@ export default defineConfig({
       name: 'api-mongodb-leaderboard',
       configureServer(server) {
         server.middlewares.use(async (req, res, next) => {
-          if (!req.url.startsWith('/api/leaderboard')) {
+          const isLeaderboard = req.url.startsWith('/api/leaderboard');
+          const isScores = req.url.startsWith('/api/scores');
+
+          if (!isLeaderboard && !isScores) {
             return next();
           }
 
           res.setHeader('Content-Type', 'application/json');
           res.setHeader('Access-Control-Allow-Origin', '*');
           res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-          res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+          res.setHeader('Access-Control-Allow-Headers', 'Content-Type, If-None-Match');
 
           if (req.method === 'OPTIONS') {
             res.statusCode = 204;
@@ -46,30 +49,52 @@ export default defineConfig({
 
           const parsedUrl = new URL(req.url, 'http://localhost');
 
-          // GET /api/leaderboard/status
-          if (parsedUrl.pathname === '/api/leaderboard/status') {
+          // GET status
+          if (parsedUrl.pathname === '/api/leaderboard/status' || parsedUrl.searchParams.get('status') === '1') {
             const status = mongoLeaderboard.getStatus();
             res.statusCode = 200;
             return res.end(JSON.stringify(status));
           }
 
-          // GET /api/leaderboard
-          if (req.method === 'GET' && parsedUrl.pathname === '/api/leaderboard') {
+          // GET leaderboard / scores
+          if (req.method === 'GET') {
             const limit = parseInt(parsedUrl.searchParams.get('limit') || '50', 10);
-            const range = parsedUrl.searchParams.get('range') || 'all';
-            const docs = await mongoLeaderboard.getTop(limit, range);
+            const scope = parsedUrl.searchParams.get('scope') || parsedUrl.searchParams.get('range') || 'all';
+            const docs = await mongoLeaderboard.getTop(limit, scope);
+
+            const etag = generateETag(docs);
+            res.setHeader('ETag', etag);
+
+            const clientETag = req.headers['if-none-match'];
+            if (clientETag && clientETag === etag) {
+              res.statusCode = 304;
+              return res.end();
+            }
+
             res.statusCode = 200;
             return res.end(JSON.stringify(docs));
           }
 
-          // POST /api/leaderboard
-          if (req.method === 'POST' && parsedUrl.pathname === '/api/leaderboard') {
+          // POST leaderboard / scores
+          if (req.method === 'POST') {
+            const clientIp = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '127.0.0.1')
+              .split(',')[0].trim();
+
+            if (!checkRateLimit(clientIp)) {
+              res.statusCode = 429;
+              return res.end(JSON.stringify({ success: false, error: 'RATE_LIMIT_EXCEEDED' }));
+            }
+
             let body = '';
             req.on('data', chunk => { body += chunk; });
             req.on('end', async () => {
               try {
                 const payload = JSON.parse(body || '{}');
                 const result = await mongoLeaderboard.submitScore(payload);
+                if (!result.success) {
+                  res.statusCode = 400;
+                  return res.end(JSON.stringify(result));
+                }
                 res.statusCode = 200;
                 return res.end(JSON.stringify(result));
               } catch (err) {

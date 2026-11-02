@@ -1,6 +1,7 @@
 import { MongoClient } from 'mongodb';
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017';
 const DB_NAME = process.env.MONGODB_DB_NAME || 'bithunter';
@@ -15,6 +16,42 @@ if (!fs.existsSync(dataDir)) {
   } catch (err) {
     console.warn('[MongoDB Leaderboard] Could not create data dir:', err.message);
   }
+}
+
+// In-memory rate limiting map: ip -> Array<timestamp>
+const ipRateLimitMap = new Map();
+
+/**
+ * Checks rate limit: max 10 submissions per minute per IP
+ * @param {string} ip
+ * @returns {boolean}
+ */
+export function checkRateLimit(ip = '127.0.0.1') {
+  const now = Date.now();
+  const windowMs = 60 * 1000;
+  const maxAllowed = 10;
+
+  let timestamps = ipRateLimitMap.get(ip) || [];
+  timestamps = timestamps.filter(t => now - t < windowMs);
+
+  if (timestamps.length >= maxAllowed) {
+    ipRateLimitMap.set(ip, timestamps);
+    return false;
+  }
+
+  timestamps.push(now);
+  ipRateLimitMap.set(ip, timestamps);
+  return true;
+}
+
+/**
+ * Generates an HTTP ETag for data
+ * @param {any} data
+ * @returns {string}
+ */
+export function generateETag(data) {
+  const str = typeof data === 'string' ? data : JSON.stringify(data);
+  return '"' + crypto.createHash('md5').update(str).digest('hex') + '"';
 }
 
 class MongoLeaderboardService {
@@ -56,7 +93,6 @@ class MongoLeaderboardService {
       this.isConnecting = false;
       console.log(`[MongoDB Leaderboard] Connected successfully to ${DB_NAME} at ${MONGODB_URI}`);
 
-      // Sync any local offline cache into MongoDB
       await this.syncOfflineCache();
       return true;
     } catch (err) {
@@ -68,7 +104,6 @@ class MongoLeaderboardService {
     }
   }
 
-  // Load offline cache from data/leaderboard-db.json
   readOfflineCache() {
     try {
       if (fs.existsSync(CACHE_FILE)) {
@@ -81,7 +116,6 @@ class MongoLeaderboardService {
     return [];
   }
 
-  // Save to offline cache
   writeOfflineCache(entries) {
     try {
       fs.writeFileSync(CACHE_FILE, JSON.stringify(entries, null, 2), 'utf-8');
@@ -90,7 +124,6 @@ class MongoLeaderboardService {
     }
   }
 
-  // Sync cache to MongoDB when connection restores
   async syncOfflineCache() {
     if (!this.isConnected || !this.db) return;
     try {
@@ -111,8 +144,7 @@ class MongoLeaderboardService {
     }
   }
 
-  async getTop(limit = 50, range = 'all') {
-    // Try reconnecting in background if disconnected
+  async getTop(limit = 50, scope = 'all') {
     if (!this.isConnected) {
       this.connect().catch(() => {});
     }
@@ -121,7 +153,7 @@ class MongoLeaderboardService {
       try {
         const collection = this.db.collection(COLLECTION_NAME);
         const query = {};
-        if (range === 'today') {
+        if (scope === 'today') {
           const startOfDay = new Date();
           startOfDay.setHours(0, 0, 0, 0);
           query.createdAt = { $gte: startOfDay };
@@ -147,9 +179,8 @@ class MongoLeaderboardService {
       }
     }
 
-    // Fallback to local cache
     let list = this.readOfflineCache();
-    if (range === 'today') {
+    if (scope === 'today') {
       const startOfDay = new Date();
       startOfDay.setHours(0, 0, 0, 0);
       const startMs = startOfDay.getTime();
@@ -160,17 +191,29 @@ class MongoLeaderboardService {
   }
 
   async submitScore(entry) {
-    if (!entry || !entry.name || typeof entry.score !== 'number') {
-      return { success: false, error: 'INVALID_PAYLOAD' };
+    if (!entry) {
+      return { success: false, error: 'EMPTY_PAYLOAD' };
+    }
+
+    // 1. Validate and sanitize name: 3-12 chars, A-Z 0-9 _ -
+    const rawName = String(entry.name || '').trim().toUpperCase();
+    if (!/^[A-Z0-9_-]{3,12}$/.test(rawName)) {
+      return { success: false, error: 'INVALID_NAME_SCHEMA' };
+    }
+
+    // 2. Anti-cheat & Plausibility: 0 <= score <= 50000
+    const rawScore = Number(entry.score);
+    if (typeof entry.score !== 'number' || isNaN(rawScore) || rawScore < 0 || rawScore > 50000) {
+      return { success: false, error: 'IMPLAUSIBLE_SCORE' };
     }
 
     const payload = {
-      name: String(entry.name).toUpperCase().slice(0, 12),
-      score: Math.floor(entry.score),
+      name: rawName,
+      score: Math.floor(rawScore),
       districts: Math.max(0, Math.min(4, Number(entry.districts) || 0)),
       tokens: Math.max(0, Math.min(10, Number(entry.tokens) || 0)),
       badge: entry.badge || 'BRONZE',
-      verificationCode: entry.verificationCode || `#${Math.random().toString(16).slice(2, 6).toUpperCase()}-${Math.random().toString(16).slice(2, 6).toUpperCase()}`,
+      verificationCode: entry.verificationCode || entry.runId || `#${Math.random().toString(16).slice(2, 6).toUpperCase()}-${Math.random().toString(16).slice(2, 6).toUpperCase()}`,
       createdAt: new Date(entry.timestamp || Date.now()),
       timestamp: entry.timestamp || Date.now(),
     };
@@ -200,7 +243,6 @@ class MongoLeaderboardService {
           { upsert: true }
         );
 
-        // Find rank
         const higherCount = await collection.countDocuments({ score: { $gt: payload.score } });
         return { success: true, rank: higherCount + 1, entry: payload, isMongo: true };
       } catch (err) {
@@ -216,7 +258,7 @@ class MongoLeaderboardService {
     return {
       connected: this.isConnected,
       db: 'mongodb',
-      uri: MONGODB_URI.replace(/\/\/[^:]+:[^@]+@/, '//***:***@'), // hide credentials if any
+      uri: MONGODB_URI.replace(/\/\/[^:]+:[^@]+@/, '//***:***@'),
       dbName: DB_NAME,
       error: this.lastError,
     };
@@ -224,4 +266,3 @@ class MongoLeaderboardService {
 }
 
 export const mongoLeaderboard = new MongoLeaderboardService();
-

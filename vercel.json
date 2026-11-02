@@ -6,6 +6,10 @@
       "destination": "/api/leaderboard?status=1"
     },
     {
+      "source": "/api/scores",
+      "destination": "/api/scores"
+    },
+    {
       "source": "/api/leaderboard",
       "destination": "/api/leaderboard"
     }
