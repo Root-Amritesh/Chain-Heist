@@ -5,6 +5,7 @@ import { KENNEY_FUTURE_NARROW_FONT_NAME } from '../../assets/font-keys.js';
 import { dataManager } from '../../utils/data-manager.js';
 import { runState } from '../../state/run-state.js';
 import { ScoreManager } from '../../systems/score-manager.js';
+import { LivesManager } from '../../systems/lives-manager.js';
 import { TimeManager, SESSION_END_REASONS } from '../../systems/time-manager.js';
 import { MiniGameClock } from '../../minigames/clock.js';
 import {
@@ -34,6 +35,9 @@ export class VaultRunScene extends BaseScene {
   // Session ID from TimeManager
   /** @type {string | null} */
   #sessionId = null;
+
+  /** @type {string | null} */
+  #activeDeathId = null;
 
   // Player state
   /** @type {{
@@ -1403,9 +1407,11 @@ export class VaultRunScene extends BaseScene {
 
   #handlePlayerHit() {
     this.cameras.main.shake(300, 0.02);
-    runState.loseLife();
+    const deathId = LivesManager.createDeathId();
+    this.#activeDeathId = deathId;
+    LivesManager.loseLife({ reason: 'vault_ape_hit', deathId });
 
-    if (runState.lives <= 0) {
+    if (LivesManager.getLives() <= 0) {
       this.#triggerDefeat(SESSION_END_REASONS.DEFEAT, 'SECURITY BREACH: ALL UNITS COMPROMISED');
       return;
     }
@@ -1460,8 +1466,8 @@ export class VaultRunScene extends BaseScene {
     }).setOrigin(0.5);
 
     // Lives counter
-    const hearts = '♥ '.repeat(Math.max(0, runState.lives)).trim();
-    const livesText = this.add.text(cx, cy - 35, `SYSTEM INTEGRITY: ${hearts} (${runState.lives}/3 LIVES LEFT)`, {
+    const hearts = '♥ '.repeat(Math.max(0, LivesManager.getLives())).trim();
+    const livesText = this.add.text(cx, cy - 35, `SYSTEM INTEGRITY: ${hearts} (${LivesManager.getLives()}/3 LIVES LEFT)`, {
       fontFamily: KENNEY_FUTURE_NARROW_FONT_NAME,
       fontSize: '13px',
       color: '#FFD700',
@@ -1899,6 +1905,9 @@ export class VaultRunScene extends BaseScene {
       TimeManager.endSession(this.#sessionId, reasonKey);
     }
 
+    const deathId = this.#activeDeathId || LivesManager.createDeathId();
+    this.#activeDeathId = null;
+
     // Report result
     ScoreManager.reportGameResult('vaultRun', {
       score: this.#miniScore,
@@ -1906,6 +1915,7 @@ export class VaultRunScene extends BaseScene {
       durationMs: this.#gameplayElapsedMs,
       runId: runState.runStart,
       portalId: 2,
+      deathId,
     });
 
     this.cameras.main.shake(400, 0.025);
@@ -1942,11 +1952,16 @@ export class VaultRunScene extends BaseScene {
       this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
         // If player chose to abort/quit, return directly to world scene
         if (reasonKey === SESSION_END_REASONS.PLAYER_QUIT) {
-          this.scene.start(SCENE_KEYS.WORLD_SCENE);
+          if (LivesManager.getLives() <= 0) {
+            this.scene.start(SCENE_KEYS.RESULTS_SCENE);
+          } else {
+            this.scene.start(SCENE_KEYS.WORLD_SCENE);
+          }
         } else {
           this.scene.start(SCENE_KEYS.APE_BATTLE_SCENE, {
             ...this._data,
             mode: 'lose',
+            deathId,
           });
         }
       });

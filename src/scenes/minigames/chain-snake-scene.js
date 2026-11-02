@@ -5,6 +5,7 @@ import { KENNEY_FUTURE_NARROW_FONT_NAME } from '../../assets/font-keys.js';
 import { AUDIO_ASSET_KEYS } from '../../assets/asset-keys.js';
 import { dataManager } from '../../utils/data-manager.js';
 import { runState } from '../../state/run-state.js';
+import { LivesManager } from '../../systems/lives-manager.js';
 import { TimeManager, SESSION_END_REASONS } from '../../systems/time-manager.js';
 import { MiniGameClock } from '../../minigames/clock.js';
 import { SNAKE_CONFIG } from '../../minigames/snake.config.js';
@@ -1616,12 +1617,14 @@ export class ChainSnakeScene extends BaseScene {
       color: '#FFC0D0',
     }).setOrigin(0.5).setDepth(151);
 
+    const deathId = LivesManager.createDeathId();
     this.time.delayedCall(1500, () => {
       this.cameras.main.fadeOut(400, 0, 0, 0);
       this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
         this.scene.start(SCENE_KEYS.APE_BATTLE_SCENE, {
           ...this._data,
           mode: 'lose',
+          deathId,
         });
       });
     });

@@ -5,6 +5,7 @@ import { KENNEY_FUTURE_NARROW_FONT_NAME } from '../assets/font-keys.js';
 import { dataManager } from '../utils/data-manager.js';
 import { runState } from '../state/run-state.js';
 import { ScoreManager } from '../systems/score-manager.js';
+import { LivesManager } from '../systems/lives-manager.js';
 import { MAX_DISTRICTS } from '../config.js';
 
 /**
@@ -233,14 +234,16 @@ export class ApeBattleScene extends BaseScene {
       this.#displayMessages([
         `${playerName} lost a life…`,
       ], () => {
+        const deathId = this.#data.deathId || LivesManager.createDeathId();
         ScoreManager.reportGameResult(this.#data.game || 'battle', {
           score: 0,
           completed: false,
           portalId: this.#data.portalId,
+          deathId,
         });
         this.cameras.main.fadeOut(500, 0, 0, 0);
         this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
-          if (runState.lives <= 0) {
+          if (LivesManager.getLives() <= 0) {
             this.scene.start(SCENE_KEYS.RESULTS_SCENE);
           } else {
             this.scene.start(SCENE_KEYS.WORLD_SCENE);

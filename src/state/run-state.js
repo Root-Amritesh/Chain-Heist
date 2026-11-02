@@ -1,4 +1,5 @@
 import { TimeManager } from '../systems/time-manager.js';
+import { LivesManager } from '../systems/lives-manager.js';
 
 const RUN_STATE_STORAGE_KEY = 'CHAIN_HEIST_RUN_STATE';
 
@@ -41,7 +42,8 @@ export class RunStateManager {
   resetToDefaults() {
     this.name = 'HUNTER_01';
     this.hunter = 'cat-1';
-    this.lives = 3;
+    LivesManager.reset(3);
+    this.lives = LivesManager.getLives();
     this.score = 0;
     this.cleared = [];
     this.tokensFound = 0;
@@ -64,7 +66,8 @@ export class RunStateManager {
   initNewRun(name = 'HUNTER_01', hunter = 'cat-1') {
     this.name = name;
     this.hunter = hunter;
-    this.lives = 3;
+    LivesManager.reset(3);
+    this.lives = LivesManager.getLives();
     this.score = 0;
     this.cleared = [];
     this.tokensFound = 0;
@@ -181,9 +184,10 @@ export class RunStateManager {
     this.save();
   }
 
-  loseLife() {
-    this.lives = Math.max(0, this.lives - 1);
+  loseLife({ reason = 'runState_loseLife', deathId = null } = {}) {
+    this.lives = LivesManager.loseLife({ reason, deathId });
     this.save();
+    return this.lives;
   }
 
   /**
@@ -246,7 +250,8 @@ export class RunStateManager {
       if (data) {
         this.name = data.name || this.name;
         this.hunter = data.hunter || this.hunter;
-        this.lives = typeof data.lives === 'number' ? data.lives : 3;
+        LivesManager.load(typeof data.lives === 'number' ? data.lives : 3);
+        this.lives = LivesManager.getLives();
         this.score = typeof data.score === 'number' ? data.score : 0;
         this.cleared = Array.isArray(data.cleared) ? data.cleared : [];
         this.tokensFound = typeof data.tokensFound === 'number' ? data.tokensFound : 0;
@@ -269,6 +274,7 @@ export class RunStateManager {
 }
 
 export const runState = new RunStateManager();
+LivesManager.attachRunState(runState);
 
 /**
  * Checks whether Reduce Motion is active via OS preference or game setting

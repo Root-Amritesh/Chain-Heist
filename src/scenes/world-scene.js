@@ -5,6 +5,7 @@ import { Player } from '../world/characters/player.js';
 import { DIRECTION } from '../common/direction.js';
 import { ENABLE_ZONE_DEBUGGING, TILED_COLLISION_LAYER_ALPHA, TILE_SIZE, FEET_BOX_WIDTH, FEET_BOX_HEIGHT, WORLD_WIDTH, WORLD_HEIGHT, MAP_WIDTH, MAP_HEIGHT, SPEED, PLAYER_SPEED, PLAYER_RUN_SPEED, CAT_DISPLAY_HEIGHT, NPC_DISPLAY_HEIGHT, APE_DISPLAY_HEIGHT, NPC_INTERACTION_RADIUS, DEFAULT_PLAYER_SPAWN, COIN_VALUE, PARTICIPATION_BONUS, MAX_MINIGAME_SCORE, MAX_DISTRICTS } from '../config.js';
 import { ScoreManager } from '../systems/score-manager.js';
+import { LivesManager } from '../systems/lives-manager.js';
 import { TimeManager, SESSION_END_REASONS } from '../systems/time-manager.js';
 import { initWalkmask, isWalkable, getWalkmaskData, paintWalkmask, exportWalkmaskPNG, findNearestReachable, getReachableCount } from '../world/walkmask.js';
 import { DATA_MANAGER_STORE_KEYS, dataManager } from '../utils/data-manager.js';
@@ -106,6 +107,8 @@ export class WorldScene extends BaseScene {
   #hudContainer;
   /** @type {Phaser.GameObjects.Text[]} */
   #hudHeartTexts = [];
+  /** @type {(() => void) | null} */
+  #livesUnsubscribe = null;
   /** @type {Phaser.GameObjects.Text} */
   #hudScoreText;
   /** @type {Phaser.GameObjects.Text[]} */
@@ -293,7 +296,7 @@ export class WorldScene extends BaseScene {
 
     runState.load();
     TimeManager.load();
-    if (runState.cleared.length >= MAX_DISTRICTS || runState.lives <= 0 || TimeManager.worldRemainingMs <= 0) {
+    if (runState.cleared.length >= MAX_DISTRICTS || LivesManager.getLives() <= 0 || TimeManager.worldRemainingMs <= 0) {
       this.scene.start(SCENE_KEYS.RESULTS_SCENE);
       return;
     }
@@ -693,6 +696,18 @@ export class WorldScene extends BaseScene {
     TimeManager.load();
     runState.startTimer();
     this.#createRunHud();
+    if (this.#livesUnsubscribe) {
+      this.#livesUnsubscribe();
+    }
+    this.#livesUnsubscribe = LivesManager.onChange((lives) => {
+      this.#updateHudHearts(lives, true);
+    });
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      if (this.#livesUnsubscribe) {
+        this.#livesUnsubscribe();
+        this.#livesUnsubscribe = null;
+      }
+    });
     this.#createPauseMenu();
 
     // Create Minimap (top-right ~160px wide, cyan neon border, dark frame)
@@ -840,7 +855,7 @@ export class WorldScene extends BaseScene {
       runState.resumeTimer();
       const deltaSec = delta / 1000;
       const timeExpired = runState.tick(deltaSec);
-      if (timeExpired) {
+      if (timeExpired || LivesManager.getLives() <= 0) {
         this.scene.start(SCENE_KEYS.RESULTS_SCENE);
         return;
       }
@@ -1126,6 +1141,34 @@ export class WorldScene extends BaseScene {
   }
 
   /**
+   * Updates HUD heart elements and optionally triggers heart loss animation
+   * @param {number} lives
+   * @param {boolean} [animate=false]
+   */
+  #updateHudHearts(lives, animate = false) {
+    if (!this.#hudHeartTexts || this.#hudHeartTexts.length === 0) return;
+    const clampedLives = Math.max(0, Math.min(3, lives));
+    for (let i = 0; i < 3; i++) {
+      const heart = this.#hudHeartTexts[i];
+      if (!heart || !heart.active) continue;
+      if (i < clampedLives) {
+        heart.setColor('#FF2A6D').setAlpha(1);
+      } else {
+        const wasActive = heart.alpha === 1;
+        heart.setColor('#3A284C').setAlpha(0.6);
+        if (animate && wasActive && this.tweens) {
+          this.tweens.add({
+            targets: heart,
+            scale: { from: 1.6, to: 1 },
+            duration: 350,
+            ease: Phaser.Math.Easing.Back.Out,
+          });
+        }
+      }
+    }
+  }
+
+  /**
    * Refreshes HUD values every frame
    * @param {number} time
    * @returns {void}
@@ -1134,14 +1177,7 @@ export class WorldScene extends BaseScene {
     if (!this.#hudContainer) return;
 
     // 1. Hearts
-    const lives = Math.max(0, Math.min(3, runState.lives));
-    for (let i = 0; i < 3; i++) {
-      if (i < lives) {
-        this.#hudHeartTexts[i].setColor('#FF2A6D').setAlpha(1);
-      } else {
-        this.#hudHeartTexts[i].setColor('#3A284C').setAlpha(0.6);
-      }
-    }
+    this.#updateHudHearts(LivesManager.getLives(), false);
 
     // 2. Score
     this.#hudScoreText.setText(`SCORE ${String(runState.score).padStart(6, '0')}`);

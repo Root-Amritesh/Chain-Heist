@@ -3,6 +3,7 @@ import { BaseScene } from '../base-scene.js';
 import { SCENE_KEYS } from '../scene-keys.js';
 import { KENNEY_FUTURE_NARROW_FONT_NAME } from '../../assets/font-keys.js';
 import { runState } from '../../state/run-state.js';
+import { LivesManager } from '../../systems/lives-manager.js';
 
 export class PlaceholderMiniGameScene extends BaseScene {
   /** @type {object} */
@@ -76,7 +77,7 @@ export class PlaceholderMiniGameScene extends BaseScene {
       fontStyle: 'bold',
     }).setOrigin(0.5);
 
-    this.add.text(cx, cy - 55, `OPERATIVE: ${runState.name}  •  LIVES: ${'♥ '.repeat(runState.lives)}`, {
+    this.add.text(cx, cy - 55, `OPERATIVE: ${runState.name}  •  LIVES: ${'♥ '.repeat(Math.max(0, LivesManager.getLives()))}`, {
       fontFamily: KENNEY_FUTURE_NARROW_FONT_NAME,
       fontSize: '13px',
       color: '#8E8AAB',

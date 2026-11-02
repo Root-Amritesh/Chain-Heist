@@ -9,6 +9,7 @@ import {
   MAX_POSSIBLE_SCORE,
 } from '../config.js';
 import { runState } from '../state/run-state.js';
+import { LivesManager } from './lives-manager.js';
 
 export class ScoreManager {
   /** @type {Set<string>} */
@@ -57,18 +58,18 @@ export class ScoreManager {
   /**
    * Reports minigame completion idempotently
    * @param {string} gameId
-   * @param {{ score?: number, completed?: boolean, durationMs?: number, runId?: string | number, portalId?: number | null }} [result]
-   * @returns {{ success: boolean, duplicate?: boolean, earned?: number, score: number, completed: boolean }}
+   * @param {{ score?: number, completed?: boolean, durationMs?: number, runId?: string | number, portalId?: number | null, deathId?: string | null }} [result]
+   * @returns {{ success: boolean, duplicate?: boolean, earned?: number, score: number, completed: boolean, lives?: number }}
    */
-  static reportGameResult(gameId, { score = 0, completed = false, durationMs = 0, runId = '', portalId = null } = { completed: false }) {
-    const runKey = `${runId || runState.runStart || 'current'}_${gameId}`;
-    if (this.#reportedResults.has(runKey)) {
-      console.warn(`[ScoreManager] Result already reported for ${runKey}, ignoring duplicate call.`);
-      return { success: false, duplicate: true, score: runState.score, completed };
-    }
-    this.#reportedResults.add(runKey);
-
+  static reportGameResult(gameId, { score = 0, completed = false, durationMs = 0, runId = '', portalId = null, deathId = null } = { completed: false }) {
     if (completed) {
+      const clearKey = `${runId || runState.runStart || 'current'}_${gameId}_clear`;
+      if (this.#reportedResults.has(clearKey)) {
+        console.warn(`[ScoreManager] Clear already reported for ${clearKey}, ignoring duplicate call.`);
+        return { success: false, duplicate: true, score: runState.score, completed: true };
+      }
+      this.#reportedResults.add(clearKey);
+
       const earned = Math.max(0, score) + DISTRICT_CLEAR_BONUS;
       runState.addScore(earned);
       if (portalId !== null && portalId !== undefined) {
@@ -79,9 +80,12 @@ export class ScoreManager {
       runState.save();
       return { success: true, earned, score: runState.score, completed: true };
     } else {
-      runState.loseLife();
-      runState.save();
-      return { success: true, earned: 0, score: runState.score, completed: false };
+      // Minigame lost / defeat: route through LivesManager single source of truth
+      const currentLives = LivesManager.loseLife({
+        reason: `minigame_${gameId}`,
+        deathId,
+      });
+      return { success: true, earned: 0, score: runState.score, completed: false, lives: currentLives };
     }
   }
 
@@ -92,7 +96,7 @@ export class ScoreManager {
     runState.load();
     const baseScore = runState.score;
     const timeLeft = Math.max(0, Math.floor(runState.timeRemaining));
-    const livesLeft = Math.max(0, runState.lives);
+    const livesLeft = Math.max(0, LivesManager.getLives());
     const isVictory = runState.cleared.length >= MAX_DISTRICTS;
 
     let gameOverReason = null;
@@ -196,6 +200,7 @@ export class ScoreManager {
    */
   static clearRun() {
     this.#reportedResults.clear();
+    LivesManager.reset(3);
     runState.resetToDefaults();
     if (typeof localStorage !== 'undefined') {
       localStorage.removeItem('CHAIN_HEIST_RUN_STATE');
